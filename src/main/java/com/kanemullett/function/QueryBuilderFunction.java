@@ -12,6 +12,7 @@ import org.jooq.Table;
 import org.jooq.TableLike;
 import org.jooq.impl.DSL;
 
+import com.kanemullett.model.Column;
 import com.kanemullett.model.Join;
 import com.kanemullett.model.QueryCondition;
 import com.kanemullett.model.QueryConditionGroup;
@@ -39,7 +40,9 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
             query.addSelect(DSL.asterisk());
         } else {
             query.addSelect(request.getColumns().stream()
-                .map(col -> DSL.field(DSL.name(col.getParts())))
+                .map(col -> col.getAlias() != null
+                    ? DSL.field(DSL.name(col.getParts().toArray(String[]::new))).as(col.getAlias())
+                    : DSL.field(DSL.name(col.getParts().toArray(String[]::new))))
                 .collect(Collectors.toList()));
         }
 
@@ -127,14 +130,20 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
 
     private Condition buildCondition(QueryCondition queryCondition) {
         final Field<Object> field = DSL.field(DSL.name(
-            queryCondition.getColumn().getParts()
+            queryCondition.getColumn().getParts().toArray(String[]::new)
         ));
 
+        final Object value = queryCondition.getValue();
+
+        final Field<Object> valueField = value instanceof Column col
+            ? DSL.field(DSL.name(col.getParts().toArray(String[]::new)))
+            : null;
+
         return switch (queryCondition.getOperator()) {
-            case EQUAL -> field.eq(queryCondition.getValue());
-            case LESS_THAN -> field.lt(queryCondition.getValue());
-            case GREATER_THAN -> field.gt(queryCondition.getValue());
-            case IN -> field.in(queryCondition.getValue());
+            case EQUAL -> valueField != null ? field.eq(valueField) : field.eq(value);
+            case LESS_THAN -> valueField != null ? field.lt(valueField) : field.lt(value);
+            case GREATER_THAN -> valueField != null ? field.gt(valueField) : field.gt(value);
+            case IN -> field.in(value);
         };
     }
 }
