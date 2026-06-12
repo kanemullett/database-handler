@@ -22,6 +22,8 @@ public interface UpdateRequest<T extends DatabaseRecord> {
     @Nullable
     List<T> getRecords();
 
+    Class<T> getRecordClass();
+
     @Nullable
     QueryConditionGroup getConditionGroup();
 }

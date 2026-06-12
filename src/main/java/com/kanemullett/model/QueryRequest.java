@@ -13,10 +13,10 @@ import jakarta.annotation.Nullable;
 @Immutable
 @JsonSerialize(as=ImmutableQueryRequest.class)
 @JsonDeserialize(as=ImmutableQueryRequest.class)
-public interface QueryRequest {
+public interface QueryRequest<T extends DatabaseRecord> {
 
     @Default
-    default boolean isDistinct() {
+    default boolean getDistinct() {
         return false;
     }
 
@@ -36,4 +36,6 @@ public interface QueryRequest {
 
     @Nullable
     OrderBy getOrderBy();
+
+    Class<T> getRecordClass();
 }
