@@ -12,7 +12,7 @@ import jakarta.annotation.Nullable;
 @JsonDeserialize(as=ImmutableQueryJoin.class)
 public interface QueryJoin<T extends DatabaseRecord> extends Join {
 
-    SqlQuery<T> getQuery();
+    QueryRequest<T> getQuery();
 
     @Nullable
     String getAlias();

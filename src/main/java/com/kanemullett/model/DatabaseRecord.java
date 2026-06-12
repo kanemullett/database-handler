@@ -1,5 +1,8 @@
 package com.kanemullett.model;
 
+import java.util.UUID;
+
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -10,5 +13,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 @JsonDeserialize(as=ImmutableDatabaseRecord.class)
 public interface DatabaseRecord {
 
-    String getId();
+    @Default
+    default String getId() {
+        return UUID.randomUUID().toString();
+    };
 }

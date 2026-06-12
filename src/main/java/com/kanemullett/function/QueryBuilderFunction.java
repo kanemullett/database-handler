@@ -1,28 +1,30 @@
 package com.kanemullett.function;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Field;
+import org.jooq.Select;
 import org.jooq.SelectQuery;
 import org.jooq.Table;
 import org.jooq.TableLike;
+import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
 
 import com.kanemullett.model.Column;
+import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.Join;
-import com.kanemullett.model.QueryCondition;
-import com.kanemullett.model.QueryConditionGroup;
 import com.kanemullett.model.QueryJoin;
 import com.kanemullett.model.QueryRequest;
 import com.kanemullett.model.TableJoin;
 import com.kanemullett.model.type.JoinType;
 import com.kanemullett.model.type.OrderDirection;
+import com.kanemullett.util.BuilderUtils;
 
-public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<?>> {
+public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<QueryRequest<T>, SelectQuery<?>> {
 
     private final DSLContext dsl;
 
@@ -31,8 +33,12 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
     }
 
     @Override
-    public SelectQuery<?> apply(QueryRequest request) {
-        final SelectQuery<?> query = request.isDistinct()
+    public SelectQuery<?> apply(QueryRequest<T> request) {
+        return buildSelect(request);
+    }
+
+    private <R extends DatabaseRecord> SelectQuery<?> buildSelect(QueryRequest<R> request) {
+        final SelectQuery<?> query = request.getDistinct()
             ? dsl.selectDistinct().getQuery()
             : dsl.selectQuery();
 
@@ -40,20 +46,27 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
             query.addSelect(DSL.asterisk());
         } else {
             query.addSelect(request.getColumns().stream()
-                .map(col -> col.getAlias() != null
-                    ? DSL.field(DSL.name(col.getParts().toArray(String[]::new))).as(col.getAlias())
-                    : DSL.field(DSL.name(col.getParts().toArray(String[]::new))))
+                .map(col -> {
+                    if (col instanceof com.kanemullett.model.Function func) {
+                        return buildFunction(func);
+                    }
+                    return col.getAlias() != null
+                        ? DSL.field(DSL.name(col.getParts().toArray(String[]::new))).as(col.getAlias())
+                        : DSL.field(DSL.name(col.getParts().toArray(String[]::new)));
+                })
                 .collect(Collectors.toList()));
         }
 
         query.addFrom(buildTable(request.getTable()));
 
         if (request.getJoins() != null) {
-            request.getJoins().forEach(join -> buildJoin(query, join));
+            request.getJoins().stream()
+                .filter(join -> join.getJoinType() != JoinType.UNION)
+                .forEach(join -> buildJoin(query, join));
         }
 
         if (request.getConditionGroup() != null) {
-            query.addConditions(buildConditionGroup(request.getConditionGroup()));
+            query.addConditions(BuilderUtils.buildConditionGroup(request.getConditionGroup()));
         }
 
         if (request.getGroupBy() != null) {
@@ -71,6 +84,30 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
         return query;
     }
 
+    private org.jooq.Field<?> buildFunction(com.kanemullett.model.Function function) {
+        final String functionName = function.getParts().size() == 2
+            ? "\"" + function.getParts().get(0) + "\"." + function.getParts().get(1)
+            : function.getParts().get(function.getParts().size() - 1);
+
+        final org.jooq.Field<?>[] args = function.getArgs().stream()
+            .map(arg -> {
+                if (arg instanceof com.kanemullett.model.Function nestedFunc) {
+                    return (org.jooq.Field<?>) buildFunction(nestedFunc);
+                }
+                if (arg instanceof Column col) {
+                    return (org.jooq.Field<?>) DSL.field(DSL.name(col.getParts().toArray(String[]::new)));
+                }
+                return DSL.val(arg);
+            })
+            .toArray(org.jooq.Field[]::new);
+
+        final org.jooq.Field<?> field = DSL.function(functionName, Object.class, args);
+
+        return function.getAlias() != null
+            ? field.as(function.getAlias())
+            : field;
+    }
+
     private Table<?> buildTable(com.kanemullett.model.Table table) {
         if (table.getAlias() != null) {
             return DSL.table(DSL.name(table.getSchema(), table.getTable()))
@@ -82,7 +119,7 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
     private void buildJoin(SelectQuery<?> query, Join join) {
         final JoinType joinType = join.getJoinType();
         final Condition joinCondition = join.getJoinCondition() != null
-            ? buildCondition(join.getJoinCondition())
+            ? BuilderUtils.buildCondition(join.getJoinCondition())
             : DSL.noCondition();
 
         if (join instanceof TableJoin tableJoin) {
@@ -98,13 +135,30 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
     }
 
     private TableLike<?> buildSubquery(QueryJoin<?> queryJoin) {
-        final Table<?> derived = queryJoin.getQuery() != null
-            ? DSL.table("(" + queryJoin.getQuery().toString() + ")")
-            : DSL.table("");
+        final String sql = buildSubqueryHelper((QueryJoin<?>) queryJoin);
 
         return queryJoin.getAlias() != null
-            ? derived.as(queryJoin.getAlias())
-            : derived;
+            ? DSL.table("(" + sql + ")").as(queryJoin.getAlias())
+            : DSL.table("(" + sql + ")");
+    }
+
+    private <R extends DatabaseRecord> String buildSubqueryHelper(QueryJoin<R> queryJoin) {
+        List<String> unionParts = new ArrayList<>();
+        
+        // build base query without its UNION joins
+        unionParts.add(buildSelect(queryJoin.getQuery()).getSQL(ParamType.INLINED));
+
+        if (queryJoin.getQuery().getJoins() != null) {
+            for (Join join : queryJoin.getQuery().getJoins()) {
+                if (join instanceof QueryJoin<?> innerJoin && join.getJoinType() == JoinType.UNION) {
+                    @SuppressWarnings("unchecked")
+                    String unionSql = buildSelect(((QueryJoin<R>) innerJoin).getQuery()).getSQL(ParamType.INLINED);
+                    unionParts.add(unionSql);
+                }
+            }
+        }
+
+        return String.join(" union ", unionParts);
     }
 
     private org.jooq.JoinType mapJoinType(JoinType joinType) {
@@ -114,36 +168,6 @@ public class QueryBuilderFunction implements Function<QueryRequest, SelectQuery<
             case RIGHT -> org.jooq.JoinType.RIGHT_OUTER_JOIN;
             case OUTER -> org.jooq.JoinType.FULL_OUTER_JOIN;
             case UNION -> org.jooq.JoinType.CROSS_JOIN;
-        };
-    }
-
-    private Condition buildConditionGroup(QueryConditionGroup group) {
-        final List<Condition> conditions = group.getConditions().stream()
-            .map(this::buildCondition)
-            .collect(Collectors.toList());
-
-        return switch (group.getJoin()) {
-            case AND -> DSL.and(conditions);
-            case OR -> DSL.or(conditions);
-        };
-    }
-
-    private Condition buildCondition(QueryCondition queryCondition) {
-        final Field<Object> field = DSL.field(DSL.name(
-            queryCondition.getColumn().getParts().toArray(String[]::new)
-        ));
-
-        final Object value = queryCondition.getValue();
-
-        final Field<Object> valueField = value instanceof Column col
-            ? DSL.field(DSL.name(col.getParts().toArray(String[]::new)))
-            : null;
-
-        return switch (queryCondition.getOperator()) {
-            case EQUAL -> valueField != null ? field.eq(valueField) : field.eq(value);
-            case LESS_THAN -> valueField != null ? field.lt(valueField) : field.lt(value);
-            case GREATER_THAN -> valueField != null ? field.gt(valueField) : field.gt(value);
-            case IN -> field.in(value);
         };
     }
 }
