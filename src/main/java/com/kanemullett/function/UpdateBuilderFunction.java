@@ -11,6 +11,7 @@ import org.jooq.Field;
 import org.jooq.Query;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
+import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +19,7 @@ import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.UpdateRequest;
 import com.kanemullett.util.BuilderUtils;
 
+@Component
 public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function<UpdateRequest<T>, Query> {
 
     private final DSLContext dsl;
