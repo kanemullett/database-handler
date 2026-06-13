@@ -7,12 +7,12 @@ import java.util.stream.Collectors;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Select;
 import org.jooq.SelectQuery;
 import org.jooq.Table;
 import org.jooq.TableLike;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
+import org.springframework.stereotype.Component;
 
 import com.kanemullett.model.Column;
 import com.kanemullett.model.DatabaseRecord;
@@ -24,6 +24,7 @@ import com.kanemullett.model.type.JoinType;
 import com.kanemullett.model.type.OrderDirection;
 import com.kanemullett.util.BuilderUtils;
 
+@Component
 public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<QueryRequest<T>, SelectQuery<?>> {
 
     private final DSLContext dsl;
