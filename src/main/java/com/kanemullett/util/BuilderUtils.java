@@ -11,8 +11,24 @@ import com.kanemullett.model.Column;
 import com.kanemullett.model.QueryCondition;
 import com.kanemullett.model.QueryConditionGroup;
 
+/**
+ * Utility class providing shared methods for building jOOQ {@link Condition}
+ * objects from query model types.
+ *
+ * <p>Used by both {@link com.kanemullett.function.QueryBuilderFunction} and
+ * {@link com.kanemullett.function.UpdateBuilderFunction} to avoid duplication
+ * of condition building logic.
+ */
 public class BuilderUtils {
 
+    /**
+     * Builds a jOOQ {@link Condition} from a {@link QueryConditionGroup},
+     * combining all conditions in the group using the group's
+     * {@link com.kanemullett.model.type.ConditionJoin} operator.
+     *
+     * @param group the condition group to build from.
+     * @return the constructed {@link Condition}.
+     */
     public static Condition buildConditionGroup(QueryConditionGroup group) {
         final List<Condition> conditions = group.getConditions().stream()
             .map(con -> buildCondition(con))
@@ -24,6 +40,16 @@ public class BuilderUtils {
         };
     }
 
+    /**
+     * Builds a jOOQ {@link Condition} from a single {@link QueryCondition}.
+     *
+     * <p>If the condition's value is a {@link Column} reference, it is
+     * treated as a field reference rather than a scalar value, allowing
+     * column-to-column comparisons in join conditions and WHERE clauses.
+     *
+     * @param queryCondition the condition to build from.
+     * @return the constructed {@link Condition}.
+     */
     public static Condition buildCondition(QueryCondition queryCondition) {
         final Field<Object> field = DSL.field(DSL.name(
             queryCondition.getColumn().getParts().toArray(String[]::new)
