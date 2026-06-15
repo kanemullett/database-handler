@@ -24,20 +24,50 @@ import com.kanemullett.model.type.JoinType;
 import com.kanemullett.model.type.OrderDirection;
 import com.kanemullett.util.BuilderUtils;
 
+/**
+ * Function for building jOOQ {@link SelectQuery} objects from
+ * {@link QueryRequest} objects.
+ *
+ * <p>Handles the full range of SELECT query features including distinct
+ * selection, column aliases, table aliases, inner/outer/left/right joins,
+ * subquery joins, UNION subqueries, WHERE conditions, GROUP BY, ORDER BY,
+ * and SQL functions.
+ *
+ * @param <T> the type of {@link DatabaseRecord} the query is built for.
+ */
 @Component
 public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<QueryRequest<T>, SelectQuery<?>> {
 
     private final DSLContext dsl;
 
+    /**
+     * Constructs a new {@code QueryBuilderFunction} with the given
+     * {@link DSLContext}.
+     *
+     * @param dsl the jOOQ DSL context used to construct query components.
+     */
     public QueryBuilderFunction(DSLContext dsl) {
         this.dsl = dsl;
     }
 
+    /**
+     * Converts a {@link QueryRequest} into a jOOQ {@link SelectQuery}.
+     *
+     * @param request the query request to convert.
+     * @return the constructed {@link SelectQuery}.
+     */
     @Override
     public SelectQuery<?> apply(QueryRequest<T> request) {
         return buildSelect(request);
     }
 
+    /**
+     * Builds a {@link SelectQuery} from a {@link QueryRequest}.
+     *
+     * @param request the query request to build from.
+     * @param <R>     the record type.
+     * @return the constructed {@link SelectQuery}.
+     */
     private <R extends DatabaseRecord> SelectQuery<?> buildSelect(QueryRequest<R> request) {
         final SelectQuery<?> query = request.getDistinct()
             ? dsl.selectDistinct().getQuery()
@@ -85,6 +115,13 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
         return query;
     }
 
+    /**
+     * Builds a jOOQ {@link org.jooq.Field} from a {@link com.kanemullett.model.Function},
+     * handling nested functions, schema-qualified names, and aliases.
+     *
+     * @param function the function model to convert.
+     * @return the constructed jOOQ field.
+     */
     private org.jooq.Field<?> buildFunction(com.kanemullett.model.Function function) {
         final String functionName = function.getParts().size() == 2
             ? "\"" + function.getParts().get(0) + "\"." + function.getParts().get(1)
@@ -109,6 +146,13 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
             : field;
     }
 
+    /**
+     * Builds a jOOQ {@link Table} from a {@link com.kanemullett.model.Table},
+     * applying an alias if present.
+     *
+     * @param table the table model to convert.
+     * @return the constructed jOOQ table.
+     */
     private Table<?> buildTable(com.kanemullett.model.Table table) {
         if (table.getAlias() != null) {
             return DSL.table(DSL.name(table.getSchema(), table.getTable()))
@@ -117,6 +161,14 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
         return DSL.table(DSL.name(table.getSchema(), table.getTable()));
     }
 
+    /**
+     * Builds and adds a join to the given {@link SelectQuery} from a
+     * {@link Join} object. Handles both {@link TableJoin} and
+     * {@link QueryJoin} types.
+     *
+     * @param query the query to add the join to.
+     * @param join  the join to build.
+     */
     private void buildJoin(SelectQuery<?> query, Join join) {
         final JoinType joinType = join.getJoinType();
         final Condition joinCondition = join.getJoinCondition() != null
@@ -135,6 +187,13 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
         }
     }
 
+    /**
+     * Builds a {@link TableLike} subquery from a {@link QueryJoin}, wrapping
+     * the result in parentheses and applying an alias if present.
+     *
+     * @param queryJoin the query join to build the subquery from.
+     * @return the constructed subquery as a {@link TableLike}.
+     */
     private TableLike<?> buildSubquery(QueryJoin<?> queryJoin) {
         final String sql = buildSubqueryHelper((QueryJoin<?>) queryJoin);
 
@@ -143,6 +202,14 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
             : DSL.table("(" + sql + ")");
     }
 
+    /**
+     * Recursively builds a SQL string for a subquery, handling UNION joins
+     * by combining multiple SELECT statements with UNION.
+     *
+     * @param queryJoin the query join to build the subquery SQL from.
+     * @param <R>       the record type.
+     * @return the constructed SQL string.
+     */
     private <R extends DatabaseRecord> String buildSubqueryHelper(QueryJoin<R> queryJoin) {
         List<String> unionParts = new ArrayList<>();
         
@@ -162,6 +229,12 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
         return String.join(" union ", unionParts);
     }
 
+    /**
+     * Maps a {@link JoinType} to the corresponding jOOQ {@link org.jooq.JoinType}.
+     *
+     * @param joinType the join type to map.
+     * @return the corresponding jOOQ join type.
+     */
     private org.jooq.JoinType mapJoinType(JoinType joinType) {
         return switch (joinType) {
             case INNER -> org.jooq.JoinType.JOIN;
