@@ -1,18 +1,17 @@
 package com.kanemullett.service;
 
+import java.util.List;
+
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Result;
 import org.jooq.SelectQuery;
+import static org.junit.Assert.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-import java.util.List;
 
 import com.kanemullett.function.QueryBuilderFunction;
 import com.kanemullett.function.UpdateBuilderFunction;
@@ -22,15 +21,15 @@ import com.kanemullett.model.QueryResponse;
 import com.kanemullett.model.UpdateRequest;
 
 public class DatabaseQueryServiceTest {
-    private DatabaseQueryService<DatabaseRecord> service;
+    private DatabaseQueryService service;
     
     private final DSLContext dsl = mock(DSLContext.class);
-    private final QueryBuilderFunction<DatabaseRecord> queryFunction = mock(QueryBuilderFunction.class);
-    private final UpdateBuilderFunction<DatabaseRecord> updateFunction = mock(UpdateBuilderFunction.class);
+    private final QueryBuilderFunction queryFunction = mock(QueryBuilderFunction.class);
+    private final UpdateBuilderFunction updateFunction = mock(UpdateBuilderFunction.class);
 
     @BeforeEach
     void setUp() {
-        this.service = new DatabaseQueryService<DatabaseRecord>(dsl, queryFunction, updateFunction);
+        this.service = new DatabaseQueryService(dsl, queryFunction, updateFunction);
     }
 
     @Test

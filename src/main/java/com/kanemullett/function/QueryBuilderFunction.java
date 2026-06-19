@@ -2,7 +2,6 @@ package com.kanemullett.function;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jooq.Condition;
@@ -36,7 +35,7 @@ import com.kanemullett.util.BuilderUtils;
  * @param <T> the type of {@link DatabaseRecord} the query is built for.
  */
 @Component
-public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<QueryRequest<T>, SelectQuery<?>> {
+public class QueryBuilderFunction {
 
     private final DSLContext dsl;
 
@@ -56,8 +55,7 @@ public class QueryBuilderFunction<T extends DatabaseRecord> implements Function<
      * @param request the query request to convert.
      * @return the constructed {@link SelectQuery}.
      */
-    @Override
-    public SelectQuery<?> apply(QueryRequest<T> request) {
+    public <T extends DatabaseRecord> SelectQuery<?> apply(QueryRequest<T> request) {
         return buildSelect(request);
     }
 

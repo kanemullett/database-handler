@@ -29,7 +29,7 @@ import com.kanemullett.model.type.SqlOperator;
 import jakarta.annotation.Nullable;
 
 public class UpdateBuilderFunctionTest {
-    private UpdateBuilderFunction<ExtendedRecord> function;
+    private UpdateBuilderFunction function;
 
     private final DSLContext dsl = DSL.using(SQLDialect.POSTGRES);
 
@@ -46,7 +46,7 @@ public class UpdateBuilderFunctionTest {
 
     @BeforeEach
     void setUp() {
-        this.function = new UpdateBuilderFunction<>(dsl);
+        this.function = new UpdateBuilderFunction(dsl);
     }
 
     @Test

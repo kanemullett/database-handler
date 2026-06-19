@@ -65,6 +65,7 @@ public interface UpdateRequest<T extends DatabaseRecord> {
      *
      * @return the record class.
      */
+    @Nullable
     Class<T> getRecordClass();
 
     /**
