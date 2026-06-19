@@ -2,7 +2,6 @@ package com.kanemullett.function;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jooq.CaseConditionStep;
@@ -33,7 +32,7 @@ import com.kanemullett.util.BuilderUtils;
  * @param <T> the type of {@link DatabaseRecord} the query is built for.
  */
 @Component
-public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function<UpdateRequest<T>, Query> {
+public class UpdateBuilderFunction {
 
     private final DSLContext dsl;
     private final ObjectMapper mapper;
@@ -58,8 +57,7 @@ public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function
      * @throws IllegalArgumentException if the operation is not INSERT, UPDATE,
      *                                  or DELETE.
      */
-    @Override
-    public Query apply(UpdateRequest<T> request) {
+    public <T extends DatabaseRecord> Query apply(UpdateRequest<T> request) {
         return switch (request.getOperation()) {
             case INSERT -> buildInsert(request);
             case UPDATE -> buildUpdate(request);
@@ -79,7 +77,7 @@ public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function
      * @param request the update request containing the records to insert.
      * @return the constructed INSERT {@link Query}.
      */
-    private Query buildInsert(UpdateRequest<T> request) {
+    private <T extends DatabaseRecord> Query buildInsert(UpdateRequest<T> request) {
         final List<Map<String, Object>> records = toMaps(request.getRecords());
 
         final List<Field<?>> columns = records.stream()
@@ -114,7 +112,7 @@ public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function
      * @throws IllegalArgumentException if any record is missing the {@code id}
      *                                  field.
      */
-    private Query buildUpdate(UpdateRequest<T> request) {
+    private <T extends DatabaseRecord> Query buildUpdate(UpdateRequest<T> request) {
         final List<Map<String, Object>> records = toMaps(request.getRecords());
 
         final boolean allHaveId = records.stream().allMatch(r -> r.containsKey("id"));
@@ -191,7 +189,7 @@ public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function
      * @param request the update request to build the DELETE query from.
      * @return the constructed DELETE {@link Query}.
      */
-    private Query buildDelete(UpdateRequest<T> request) {
+    private <T extends DatabaseRecord> Query buildDelete(UpdateRequest<T> request) {
         var delete = dsl.deleteFrom(buildTable(request.getTable()));
 
         if (request.getConditionGroup() != null) {
@@ -223,7 +221,7 @@ public class UpdateBuilderFunction<T extends DatabaseRecord> implements Function
      * @param records the records to convert.
      * @return the list of column/value maps.
      */
-    private List<Map<String, Object>> toMaps(List<T> records) {
+    private <T extends DatabaseRecord> List<Map<String, Object>> toMaps(List<T> records) {
         return records.stream()
             .map(record -> mapper.convertValue(
                 record, new TypeReference<Map<String, Object>>() {}))

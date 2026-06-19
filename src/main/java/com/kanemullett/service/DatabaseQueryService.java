@@ -31,10 +31,10 @@ import com.kanemullett.model.UpdateRequest;
  * @param <T> the type of {@link DatabaseRecord} this service operates on.
  */
 @Service
-public class DatabaseQueryService<T extends DatabaseRecord> {
+public class DatabaseQueryService {
     private final DSLContext dsl;
-    private final QueryBuilderFunction<T> queryBuilderFunction;
-    private final UpdateBuilderFunction<T> updateBuilderFunction;
+    private final QueryBuilderFunction queryBuilderFunction;
+    private final UpdateBuilderFunction updateBuilderFunction;
 
     /**
      * Constructs a new {@code DatabaseQueryService} with the given
@@ -47,8 +47,8 @@ public class DatabaseQueryService<T extends DatabaseRecord> {
      */
     public DatabaseQueryService(
         DSLContext dsl,
-        QueryBuilderFunction<T> queryBuilderFunction,
-        UpdateBuilderFunction<T> updateBuilderFunction) {
+        QueryBuilderFunction queryBuilderFunction,
+        UpdateBuilderFunction updateBuilderFunction) {
         
         this.dsl = dsl;
         this.queryBuilderFunction = queryBuilderFunction;
@@ -67,7 +67,7 @@ public class DatabaseQueryService<T extends DatabaseRecord> {
      * @param request the query request specifying the SELECT operation.
      * @return a {@link QueryResponse} containing the retrieved records.
      */
-    public QueryResponse<T> retrieveRecords(QueryRequest<T> request) {
+    public <T extends DatabaseRecord> QueryResponse<T> retrieveRecords(QueryRequest<T> request) {
         final SelectQuery<?> query = queryBuilderFunction.apply(request);
 
         final List<T> records = dsl.fetch(query)
@@ -92,7 +92,7 @@ public class DatabaseQueryService<T extends DatabaseRecord> {
      * @param request the update request specifying the write operation.
      * @return a {@link QueryResponse} containing the number of affected rows.
      */
-    public QueryResponse<T> updateRecords(UpdateRequest<T> request) {
+    public <T extends DatabaseRecord> QueryResponse<T> updateRecords(UpdateRequest<T> request) {
         final Query query = updateBuilderFunction.apply(request);
 
         final int recordCount = dsl.execute(query);

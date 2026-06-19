@@ -32,13 +32,13 @@ import com.kanemullett.model.type.JoinType;
 import com.kanemullett.model.type.OrderDirection;
 
 public class QueryBuilderFunctionTest {
-    private QueryBuilderFunction<DatabaseRecord> function;
+    private QueryBuilderFunction function;
 
     private final DSLContext dsl = DSL.using(SQLDialect.POSTGRES);
 
     @BeforeEach
     void setUp() {
-        this.function = new QueryBuilderFunction<>(dsl);
+        this.function = new QueryBuilderFunction(dsl);
     }
 
     @Test
