@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.kanemullett.function.QueryBuilderFunction;
 import com.kanemullett.function.UpdateBuilderFunction;
+import com.kanemullett.mapper.DatabaseRecordMapper;
 import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.ImmutableQueryResponse;
 import com.kanemullett.model.QueryRequest;
@@ -35,6 +36,7 @@ public class DatabaseQueryService {
     private final DSLContext dsl;
     private final QueryBuilderFunction queryBuilderFunction;
     private final UpdateBuilderFunction updateBuilderFunction;
+    private final DatabaseRecordMapper recordMapper;
 
     /**
      * Constructs a new {@code DatabaseQueryService} with the given
@@ -48,11 +50,13 @@ public class DatabaseQueryService {
     public DatabaseQueryService(
         DSLContext dsl,
         QueryBuilderFunction queryBuilderFunction,
-        UpdateBuilderFunction updateBuilderFunction) {
+        UpdateBuilderFunction updateBuilderFunction,
+        DatabaseRecordMapper recordMapper) {
         
         this.dsl = dsl;
         this.queryBuilderFunction = queryBuilderFunction;
         this.updateBuilderFunction = updateBuilderFunction;
+        this.recordMapper = recordMapper;
     }
 
     /**
@@ -70,8 +74,9 @@ public class DatabaseQueryService {
     public <T extends DatabaseRecord> QueryResponse<T> retrieveRecords(QueryRequest<T> request) {
         final SelectQuery<?> query = queryBuilderFunction.apply(request);
 
-        final List<T> records = dsl.fetch(query)
-            .into(request.getRecordClass());
+        final List<T> records = dsl.fetch(query).stream()
+            .map(record -> recordMapper.map(record, request.getRecordClass()))
+            .toList();
 
         return ImmutableQueryResponse.<T>builder()
             .referenceId(UUID.randomUUID().toString())

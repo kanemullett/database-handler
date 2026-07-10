@@ -223,8 +223,12 @@ public class UpdateBuilderFunction {
      */
     private <T extends DatabaseRecord> List<Map<String, Object>> toMaps(List<T> records) {
         return records.stream()
-            .map(record -> mapper.convertValue(
-                record, new TypeReference<Map<String, Object>>() {}))
+            .map(record -> {
+                final Map<String, Object> map = mapper.convertValue(
+                    record, new TypeReference<Map<String, Object>>() {});
+                map.remove("data");
+                return map;
+            })
             .collect(Collectors.toList());
     }
 }
