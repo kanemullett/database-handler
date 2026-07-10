@@ -1,9 +1,10 @@
 package com.kanemullett.service;
 
-import java.util.List;
+import java.util.stream.Stream;
 
 import org.jooq.DSLContext;
 import org.jooq.Query;
+import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.SelectQuery;
 import static org.junit.Assert.assertEquals;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import com.kanemullett.function.QueryBuilderFunction;
 import com.kanemullett.function.UpdateBuilderFunction;
+import com.kanemullett.mapper.DatabaseRecordMapper;
 import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.QueryRequest;
 import com.kanemullett.model.QueryResponse;
@@ -26,10 +28,11 @@ public class DatabaseQueryServiceTest {
     private final DSLContext dsl = mock(DSLContext.class);
     private final QueryBuilderFunction queryFunction = mock(QueryBuilderFunction.class);
     private final UpdateBuilderFunction updateFunction = mock(UpdateBuilderFunction.class);
+    private final DatabaseRecordMapper mapper = mock(DatabaseRecordMapper.class);
 
     @BeforeEach
     void setUp() {
-        this.service = new DatabaseQueryService(dsl, queryFunction, updateFunction);
+        this.service = new DatabaseQueryService(dsl, queryFunction, updateFunction, mapper);
     }
 
     @Test
@@ -40,11 +43,14 @@ public class DatabaseQueryServiceTest {
             .thenReturn(query);
 
         final Result result = mock(Result.class);
-        when(result.into(DatabaseRecord.class))
-            .thenReturn(List.of(mock(DatabaseRecord.class)));
+        when(result.stream())
+            .thenReturn(Stream.of(mock(Record.class)));
 
         when(dsl.fetch(query))
             .thenReturn(result);
+
+        when(mapper.map(any(), any()))
+            .thenReturn(mock(DatabaseRecord.class));
 
         final QueryRequest<DatabaseRecord> request = mock(QueryRequest.class);
         when(request.getRecordClass())
