@@ -2,7 +2,6 @@ package com.kanemullett.function;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.jooq.CaseConditionStep;
 import org.jooq.DSLContext;
@@ -80,20 +79,20 @@ public class UpdateBuilderFunction {
     private <T extends DatabaseRecord> Query buildInsert(UpdateRequest<T> request) {
         final List<Map<String, Object>> records = toMaps(request.getRecords());
 
-        final List<Field<?>> columns = records.stream()
+        final List<Field<Object>> columns = records.stream()
             .flatMap(r -> r.keySet().stream())
             .distinct()
             .sorted()
             .map(col -> DSL.field(DSL.name(col)))
-            .collect(Collectors.toList());
+            .toList();
 
         var insert = dsl.insertInto(buildTable(request.getTable()))
             .columns(columns);
 
-        for (Map<String, Object> record : records) {
+        for (Map<String, Object> dbRecord : records) {
             insert = insert.values(columns.stream()
-                .map(col -> record.get(col.getName()))
-                .collect(Collectors.toList()));
+                .map(col -> dbRecord.get(col.getName()))
+                .toList());
         }
 
         return insert;
@@ -128,7 +127,7 @@ public class UpdateBuilderFunction {
             .filter(k -> !k.equals("id"))
             .distinct()
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
 
         var update = dsl.update(buildTable(request.getTable()));
 
@@ -148,7 +147,7 @@ public class UpdateBuilderFunction {
         final List<Object> ids = records.stream()
             .map(r -> r.get("id"))
             .distinct()
-            .collect(Collectors.toList());
+            .toList();
 
         return setStep.where(DSL.field(DSL.name("id")).in(ids));
     }
@@ -169,11 +168,11 @@ public class UpdateBuilderFunction {
             .filter(r -> r.containsKey(column))
             .reduce(
                 (CaseConditionStep<Object>) null,
-                (acc, record) -> {
-                    var condition = DSL.field(DSL.name("id")).eq(record.get("id"));
+                (acc, dbRecord) -> {
+                    var condition = DSL.field(DSL.name("id")).eq(dbRecord.get("id"));
                     return acc == null
-                        ? caseStep.when(condition, record.get(column))
-                        : acc.when(condition, record.get(column));
+                        ? caseStep.when(condition, dbRecord.get(column))
+                        : acc.when(condition, dbRecord.get(column));
                 },
                 (a, b) -> b
             );
@@ -223,12 +222,11 @@ public class UpdateBuilderFunction {
      */
     private <T extends DatabaseRecord> List<Map<String, Object>> toMaps(List<T> records) {
         return records.stream()
-            .map(record -> {
-                final Map<String, Object> map = mapper.convertValue(
-                    record, new TypeReference<Map<String, Object>>() {});
+            .map(dbRecord -> {
+                final Map<String, Object> map = mapper.convertValue(dbRecord, new TypeReference<Map<String, Object>>() {});
                 map.remove("data");
                 return map;
             })
-            .collect(Collectors.toList());
+            .toList();
     }
 }

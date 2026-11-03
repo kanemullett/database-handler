@@ -1,7 +1,6 @@
 package com.kanemullett.util;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.jooq.Condition;
 import org.jooq.Field;
@@ -21,6 +20,10 @@ import com.kanemullett.model.QueryConditionGroup;
  */
 public class BuilderUtils {
 
+    private BuilderUtils() {
+
+    }
+
     /**
      * Builds a jOOQ {@link Condition} from a {@link QueryConditionGroup},
      * combining all conditions in the group using the group's
@@ -32,7 +35,7 @@ public class BuilderUtils {
     public static Condition buildConditionGroup(QueryConditionGroup group) {
         final List<Condition> conditions = group.getConditions().stream()
             .map(con -> buildCondition(con))
-            .collect(Collectors.toList());
+            .toList();
 
         return switch (group.getJoin()) {
             case AND -> DSL.and(conditions);

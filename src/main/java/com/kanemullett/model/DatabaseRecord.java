@@ -35,7 +35,7 @@ public interface DatabaseRecord {
     @Default
     default String getId() {
         return UUID.randomUUID().toString();
-    };
+    }
 
     @Default
     default Map<String, Object> getData() {

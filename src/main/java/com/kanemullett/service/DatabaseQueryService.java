@@ -75,7 +75,7 @@ public class DatabaseQueryService {
         final SelectQuery<?> query = queryBuilderFunction.apply(request);
 
         final List<T> records = dsl.fetch(query).stream()
-            .map(record -> recordMapper.map(record, request.getRecordClass()))
+            .map(dbRecord -> recordMapper.map(dbRecord, request.getRecordClass()))
             .toList();
 
         return ImmutableQueryResponse.<T>builder()

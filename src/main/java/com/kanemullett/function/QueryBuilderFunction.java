@@ -2,11 +2,12 @@ package com.kanemullett.function;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record;
 import org.jooq.SelectQuery;
+import org.jooq.SortField;
 import org.jooq.Table;
 import org.jooq.TableLike;
 import org.jooq.conf.ParamType;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import com.kanemullett.model.Column;
 import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.Join;
+import com.kanemullett.model.OrderBy;
 import com.kanemullett.model.QueryJoin;
 import com.kanemullett.model.QueryRequest;
 import com.kanemullett.model.TableJoin;
@@ -55,7 +57,7 @@ public class QueryBuilderFunction {
      * @param request the query request to convert.
      * @return the constructed {@link SelectQuery}.
      */
-    public <T extends DatabaseRecord> SelectQuery<?> apply(QueryRequest<T> request) {
+    public <T extends DatabaseRecord> SelectQuery<Record> apply(QueryRequest<T> request) {
         return buildSelect(request);
     }
 
@@ -66,8 +68,8 @@ public class QueryBuilderFunction {
      * @param <R>     the record type.
      * @return the constructed {@link SelectQuery}.
      */
-    private <R extends DatabaseRecord> SelectQuery<?> buildSelect(QueryRequest<R> request) {
-        final SelectQuery<?> query = request.getDistinct()
+    private <R extends DatabaseRecord> SelectQuery<Record> buildSelect(QueryRequest<R> request) {
+        final SelectQuery<Record> query = request.getDistinct()
             ? dsl.selectDistinct().getQuery()
             : dsl.selectQuery();
 
@@ -75,15 +77,8 @@ public class QueryBuilderFunction {
             query.addSelect(DSL.asterisk());
         } else {
             query.addSelect(request.getColumns().stream()
-                .map(col -> {
-                    if (col instanceof com.kanemullett.model.Function func) {
-                        return buildFunction(func);
-                    }
-                    return col.getAlias() != null
-                        ? DSL.field(DSL.name(col.getParts().toArray(String[]::new))).as(col.getAlias())
-                        : DSL.field(DSL.name(col.getParts().toArray(String[]::new)));
-                })
-                .collect(Collectors.toList()));
+                .map(this::buildColumn)
+                .toList());
         }
 
         query.addFrom(buildTable(request.getTable()));
@@ -101,18 +96,51 @@ public class QueryBuilderFunction {
         if (request.getGroupBy() != null) {
             query.addGroupBy(request.getGroupBy().getColumns().stream()
                 .map(col -> DSL.field(DSL.name(col.getParts())))
-                .collect(Collectors.toList()));
+                .toList());
         }
 
         if (request.getOrderBy() != null) {
             query.addOrderBy(request.getOrderBy().stream()
-                .map(orderBy -> orderBy.getDirection() == OrderDirection.ASCENDING
-                    ? DSL.field(DSL.name(orderBy.getColumn().getParts().toArray(String[]::new))).asc()
-                    : DSL.field(DSL.name(orderBy.getColumn().getParts().toArray(String[]::new))).desc())
-                .collect(Collectors.toList()));
+                .map(this::buildOrderBy)
+                .toList());
         }
 
         return query;
+    }
+
+    /**
+     * Builds a jOOQ {@link org.jooq.SelectFieldOrAsterisk} from a {@link Column},
+     * delegating to {@link #buildFunction} for functions and applying an alias
+     * if present.
+     *
+     * @param column the column model to convert.
+     * @return the constructed jOOQ select field.
+     */
+    private org.jooq.SelectFieldOrAsterisk buildColumn(Column column) {
+        if (column instanceof com.kanemullett.model.Function func) {
+            return buildFunction(func);
+        }
+
+        final org.jooq.Field<Object> field = DSL.field(DSL.name(column.getParts().toArray(String[]::new)));
+
+        return column.getAlias() != null
+            ? field.as(column.getAlias())
+            : field;
+    }
+
+    /**
+     * Builds a jOOQ {@link SortField} from an {@link OrderBy}, applying the
+     * requested sort direction.
+     *
+     * @param orderBy the order by model to convert.
+     * @return the constructed jOOQ sort field.
+     */
+    private SortField<Object> buildOrderBy(OrderBy orderBy) {
+        final org.jooq.Field<Object> field = DSL.field(DSL.name(orderBy.getColumn().getParts().toArray(String[]::new)));
+
+        return orderBy.getDirection() == OrderDirection.ASCENDING
+            ? field.asc()
+            : field.desc();
     }
 
     /**
