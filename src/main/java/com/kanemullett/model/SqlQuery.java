@@ -24,7 +24,7 @@ import jakarta.annotation.Nullable;
  *
  * @param <T> the type of {@link DatabaseRecord} the query is built for.
  */
-@Deprecated
+@Deprecated(forRemoval = true)
 @Immutable
 @JsonSerialize(as=ImmutableSqlQuery.class)
 @JsonDeserialize(as=ImmutableSqlQuery.class)

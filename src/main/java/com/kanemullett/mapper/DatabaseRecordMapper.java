@@ -41,7 +41,7 @@ public class DatabaseRecordMapper {
      * Maps a single record into an instance of the given Immutables
      * interface type.
      *
-     * @param record the flat jOOQ record to map.
+     * @param jooqRecord the flat jOOQ record to map.
      * @param type the Immutables interface type to build. Must have a
      *             corresponding generated {@code Immutable<Name>} class in
      *             the same package.
@@ -54,7 +54,7 @@ public class DatabaseRecordMapper {
      *                                found or its builder could not be
      *                                introspected.
      */
-    public <T> T map(Record record, Class<T> type) {
+    public <T> T map(Record jooqRecord, Class<T> type) {
         try {
             final Class<?> implClass = Class.forName(type.getPackageName() + ".Immutable" + type.getSimpleName());
             final Object builder = implClass.getMethod("builder").invoke(null);
@@ -65,9 +65,9 @@ public class DatabaseRecordMapper {
                 propertiesByName.put(descriptor.getName(), descriptor);
             }
 
-            for (Field<?> field : record.fields()) {
+            for (Field<?> field : jooqRecord.fields()) {
                 final String name = field.getName();
-                final Object value = record.get(field);
+                final Object value = jooqRecord.get(field);
 
                 if (propertiesByName.containsKey(name)) {
                     setBuilderProperty(builderClass, builder, name, value);
