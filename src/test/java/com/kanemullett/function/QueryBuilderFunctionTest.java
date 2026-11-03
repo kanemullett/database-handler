@@ -21,6 +21,7 @@ import com.kanemullett.model.ImmutableQueryCondition;
 import com.kanemullett.model.ImmutableQueryConditionGroup;
 import com.kanemullett.model.ImmutableQueryJoin;
 import com.kanemullett.model.ImmutableQueryRequest;
+import com.kanemullett.model.OrderBy;
 import com.kanemullett.model.QueryCondition;
 import com.kanemullett.model.QueryConditionGroup;
 import com.kanemullett.model.QueryRequest;
@@ -305,14 +306,17 @@ public class QueryBuilderFunctionTest {
             .groupBy(GroupBy.of(
                 Column.of("tab", "column")
             ))
-            .orderBy(ImmutableOrderBy.builder()
-                .column(Column.of("total"))
-                .direction(OrderDirection.DESCENDING)
-                .build())
+            .orderBy(List.of(
+                ImmutableOrderBy.builder()
+                    .column(Column.of("total"))
+                    .direction(OrderDirection.DESCENDING)
+                    .build(),
+                OrderBy.of(Column.of("tab", "column"))
+            ))
             .recordClass(DatabaseRecord.class)
             .build();
 
-        final String expected = "select \"tab\".\"column\", AGG_FUNCTION(\"test_schema\".test_function(\"tab\".\"integer_column\", \"join\".\"integer_column\")) as \"total\" from \"test_schema\".\"test_table\" as \"tab\" right outer join \"test_schema\".\"join_table\" as \"join\" on \"tab\".\"matchId\" = \"join\".\"matchId\" group by \"tab\".\"column\" order by \"total\" desc";
+        final String expected = "select \"tab\".\"column\", AGG_FUNCTION(\"test_schema\".test_function(\"tab\".\"integer_column\", \"join\".\"integer_column\")) as \"total\" from \"test_schema\".\"test_table\" as \"tab\" right outer join \"test_schema\".\"join_table\" as \"join\" on \"tab\".\"matchId\" = \"join\".\"matchId\" group by \"tab\".\"column\" order by \"total\" desc, \"tab\".\"column\" asc";
 
         // When
         final SelectQuery<?> query = function.apply(request);

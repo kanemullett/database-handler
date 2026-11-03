@@ -105,9 +105,11 @@ public class QueryBuilderFunction {
         }
 
         if (request.getOrderBy() != null) {
-            query.addOrderBy(request.getOrderBy().getDirection() == OrderDirection.ASCENDING
-                ? DSL.field(DSL.name(request.getOrderBy().getColumn().getParts().toArray(String[]::new))).asc()
-                : DSL.field(DSL.name(request.getOrderBy().getColumn().getParts().toArray(String[]::new))).desc());
+            query.addOrderBy(request.getOrderBy().stream()
+                .map(orderBy -> orderBy.getDirection() == OrderDirection.ASCENDING
+                    ? DSL.field(DSL.name(orderBy.getColumn().getParts().toArray(String[]::new))).asc()
+                    : DSL.field(DSL.name(orderBy.getColumn().getParts().toArray(String[]::new))).desc())
+                .collect(Collectors.toList()));
         }
 
         return query;
