@@ -87,12 +87,14 @@ public interface QueryRequest<T extends DatabaseRecord> {
     GroupBy getGroupBy();
 
     /**
-     * Returns the ORDER BY clause, or {@code null} if not required.
+     * Returns the ORDER BY clauses, or {@code null} if not required. Sort
+     * priority is dictated by list order, with the first element taking
+     * highest priority.
      *
-     * @return the {@link OrderBy}, or {@code null}.
+     * @return the list of {@link OrderBy} objects, or {@code null}.
      */
     @Nullable
-    OrderBy getOrderBy();
+    List<OrderBy> getOrderBy();
 
     /**
      * Returns the class of the {@link DatabaseRecord} type that query results
