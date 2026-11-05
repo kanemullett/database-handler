@@ -1,49 +1,55 @@
 package com.kanemullett.config;
 
-import javax.sql.DataSource;
-
-import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.context.annotation.Bean;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration;
+import org.springframework.context.annotation.PropertySource;
 
 /**
  * Auto-configuration for the Database Handler module.
  *
- * <p>Automatically configures Flyway for database migration management when
- * this module is included as a dependency. Consuming applications should
- * provide their migration scripts under {@code classpath:db/migration} using
- * Flyway's versioned naming convention (e.g. {@code V1__create_schema.sql}).
+ * <p>Registered via
+ * {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports},
+ * so it applies automatically when this module is on the classpath. It
+ * contributes the module's defaults from {@code database-handler.properties}
+ * at the lowest precedence, so a consuming application can override any
+ * individual setting (e.g. in its own {@code application.properties})
+ * without losing the rest.
  *
- * <p>This configuration is registered via
- * {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports}
- * and requires a {@link DataSource} bean to be present in the application
- * context, typically configured via {@code application.properties}:
+ * <h2>Consumer contract</h2>
+ * <ul>
+ *   <li><b>Database:</b> PostgreSQL only. The PostgreSQL JDBC driver is
+ *       provided by this module and jOOQ's dialect is fixed to
+ *       {@code POSTGRES}.</li>
+ *   <li><b>Connection:</b> the datasource is built from the following
+ *       environment variables (or any other Spring property source):
+ *       <ul>
+ *         <li>{@code POSTGRES_HOST} (required)</li>
+ *         <li>{@code POSTGRES_PORT} (default {@code 5432})</li>
+ *         <li>{@code POSTGRES_DB} (required)</li>
+ *         <li>{@code POSTGRES_USER} (required)</li>
+ *         <li>{@code POSTGRES_PASSWORD} (required)</li>
+ *         <li>{@code POSTGRES_SSLMODE} (default {@code prefer})</li>
+ *       </ul>
+ *   </li>
+ *   <li><b>Migrations:</b> Flyway migrations are loaded from
+ *       {@code classpath:db/migration} (e.g. {@code V1__create_schema.sql})
+ *       and run on startup by Spring Boot's Flyway auto-configuration,
+ *       before jOOQ's {@code DSLContext} is available. Baseline-on-migrate
+ *       is disabled: a non-empty schema with no Flyway history table fails
+ *       startup rather than silently skipping migrations.</li>
+ * </ul>
  *
- * <pre>
- * spring.datasource.url=${DB_URL}
- * spring.datasource.username=${DB_USERNAME}
- * spring.datasource.password=${DB_PASSWORD}
- * </pre>
+ * <p>This class is ordered before the DataSource, Flyway and jOOQ
+ * auto-configurations so that its property source is in place when their
+ * conditions are evaluated.
  */
-@AutoConfiguration
+@AutoConfiguration(before = {
+    DataSourceAutoConfiguration.class,
+    FlywayAutoConfiguration.class,
+    JooqAutoConfiguration.class
+})
+@PropertySource("classpath:database-handler.properties")
 public class DatabaseHandlerAutoConfiguration {
-
-    /**
-     * Configures and initialises Flyway for database migration management.
-     *
-     * <p>Migrations are loaded from {@code classpath:db/migration} and
-     * {@code baselineOnMigrate} is enabled to support applying migrations to
-     * existing databases.
-     *
-     * @param dataSource the {@link DataSource} to use for database connections.
-     * @return the configured {@link Flyway} instance.
-     */
-    @Bean
-    public Flyway flyway(DataSource dataSource) {
-        return Flyway.configure()
-            .dataSource(dataSource)
-            .locations("classpath:db/migration")
-            .baselineOnMigrate(true)
-            .load();
-    }
 }

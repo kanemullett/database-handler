@@ -19,11 +19,10 @@
 
   <groupId>com.kanemullett</groupId>
   <artifactId>database-handler</artifactId>
-  <version>2.0.1-SNAPSHOT</version>
+  <version>3.0.0-SNAPSHOT</version>
 
   <name>database-handler</name>
-  <!-- FIXME change it to the project's website -->
-  <url>http://www.example.com</url>
+  <url>https://github.com/kanemullett/database-handler</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -33,6 +32,8 @@
     <maven.compiler.release>21</maven.compiler.release>
     <immutables.version>2.10.1</immutables.version>
     <byte-buddy.version>1.18.10</byte-buddy.version>
+    <!-- Docker Engine 29+ rejects the API version used by Testcontainers < 1.21.4 -->
+    <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
 
   <dependencies>
@@ -82,6 +83,26 @@
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
