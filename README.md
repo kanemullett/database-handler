@@ -65,6 +65,12 @@ on, Flyway would have silently skipped `V1`. To adopt an existing database,
 baseline it on purpose (for example, set `spring.flyway.baseline-on-migrate=true`
 and `spring.flyway.baseline-version=...` once) and then remove that setting.
 
+Flyway keeps its `flyway_schema_history` table in the `public` schema
+(`spring.flyway.default-schema=public`). This matters because Postgres puts
+`"$user"` first in its default `search_path`. Without this setting, if a
+migration created a schema with the same name as the database user, Flyway
+would look for its history in that schema on the next start and fail.
+
 ### 3. PostgreSQL
 
 Only PostgreSQL is supported. jOOQ's dialect is fixed to `POSTGRES`.

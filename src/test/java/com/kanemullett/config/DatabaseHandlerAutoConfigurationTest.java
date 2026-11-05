@@ -49,7 +49,9 @@ class DatabaseHandlerAutoConfigurationTest {
                 FlywayAutoConfiguration.class,
                 JooqAutoConfiguration.class
             ))
-            .withBean(JavaMigration.class, MigrationCheck::new)
+            .withBean("migrationCheck", JavaMigration.class, () -> new SqlMigration("1",
+                "CREATE TABLE migration_check (id VARCHAR PRIMARY KEY)",
+                "INSERT INTO migration_check (id) VALUES ('v1')"))
             .withPropertyValues(
                 "POSTGRES_HOST=" + POSTGRES.getHost(),
                 "POSTGRES_PORT=" + POSTGRES.getFirstMappedPort(),
@@ -58,6 +60,14 @@ class DatabaseHandlerAutoConfigurationTest {
                 "POSTGRES_PASSWORD=" + POSTGRES.getPassword(),
                 "POSTGRES_SSLMODE=disable"
             );
+    }
+
+    private static void createDatabase(String name) throws SQLException {
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE DATABASE " + name);
+        }
     }
 
     @Test
@@ -82,13 +92,33 @@ class DatabaseHandlerAutoConfigurationTest {
     }
 
     @Test
+    void shouldKeepHistoryInPublicWhenASchemaIsNamedAfterTheDatabaseUser() throws SQLException {
+        // Given a migration that creates a non-empty schema named after the
+        // database user, which comes first in Postgres' default search_path
+        createDatabase("user_schema");
+        final String userSchema = POSTGRES.getUsername();
+
+        final ApplicationContextRunner runner = contextRunner("user_schema")
+            .withBean("userSchema", JavaMigration.class, () -> new SqlMigration("2",
+                "CREATE SCHEMA \"" + userSchema + "\"",
+                "CREATE TABLE \"" + userSchema + "\".existing (id VARCHAR)"));
+
+        // When the application starts twice
+        runner.run(context -> assertThat(context).hasNotFailed());
+
+        // Then the second start still finds the history in public
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(DSLContext.class).fetchValue(
+                "select count(*) from public.flyway_schema_history where success"
+            )).isEqualTo(2L);
+        });
+    }
+
+    @Test
     void shouldFailRatherThanBaselineANonEmptySchema() throws SQLException {
         // Given a database that already has tables but no Flyway history
-        try (Connection connection = DriverManager.getConnection(
-                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-             Statement statement = connection.createStatement()) {
-            statement.execute("CREATE DATABASE non_empty");
-        }
+        createDatabase("non_empty");
         final String nonEmptyUrl = POSTGRES.getJdbcUrl().replace("/" + POSTGRES.getDatabaseName(), "/non_empty");
         try (Connection connection = DriverManager.getConnection(
                 nonEmptyUrl, POSTGRES.getUsername(), POSTGRES.getPassword())) {
@@ -103,19 +133,27 @@ class DatabaseHandlerAutoConfigurationTest {
     }
 
     /**
-     * Test migration that creates a table with one row, so a test can check
-     * it was applied.
+     * Test migration that runs the given SQL statements, so a test can check
+     * it was applied without needing migration files.
      */
-    private static final class MigrationCheck implements JavaMigration {
+    private static final class SqlMigration implements JavaMigration {
+
+        private final String version;
+        private final String[] statements;
+
+        private SqlMigration(String version, String... statements) {
+            this.version = version;
+            this.statements = statements;
+        }
 
         @Override
         public MigrationVersion getVersion() {
-            return MigrationVersion.fromVersion("1");
+            return MigrationVersion.fromVersion(version);
         }
 
         @Override
         public String getDescription() {
-            return "create migration check";
+            return "test migration " + version;
         }
 
         @Override
@@ -131,8 +169,9 @@ class DatabaseHandlerAutoConfigurationTest {
         @Override
         public void migrate(Context context) throws SQLException {
             try (Statement statement = context.getConnection().createStatement()) {
-                statement.execute("CREATE TABLE migration_check (id VARCHAR PRIMARY KEY)");
-                statement.execute("INSERT INTO migration_check (id) VALUES ('v1')");
+                for (String sql : statements) {
+                    statement.execute(sql);
+                }
             }
         }
     }
