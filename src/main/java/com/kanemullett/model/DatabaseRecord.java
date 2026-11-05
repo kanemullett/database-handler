@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
@@ -38,6 +39,7 @@ public interface DatabaseRecord {
     }
 
     @Default
+    @JsonIgnore
     default Map<String, Object> getData() {
         return Map.of();
     }
