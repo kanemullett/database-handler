@@ -17,5 +17,8 @@ public enum SqlDataType {
     TIMESTAMP_WITHOUT_TIME_ZONE,
 
     /** Boolean true/false value. */
-    BOOLEAN
+    BOOLEAN,
+
+    /** Binary JSON, used for collection, map and nested object properties. */
+    JSONB
 }

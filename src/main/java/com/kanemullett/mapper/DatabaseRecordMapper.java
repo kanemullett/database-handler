@@ -4,12 +4,18 @@ import java.beans.IntrospectionException;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.jooq.Field;
+import org.jooq.JSON;
+import org.jooq.JSONB;
 import org.jooq.Record;
 import org.springframework.stereotype.Component;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Maps flat jOOQ {@link Record} instances onto Immutables-style domain
@@ -31,11 +37,17 @@ import org.springframework.stereotype.Component;
  * columns with the same physical name across joined tables - and carry no
  * special meaning for mapping; matching is done purely by name against the
  * target type's declared properties.
+ *
+ * <p>Collection, map and nested object properties are expected to be stored
+ * as JSON ({@code jsonb}) and are deserialised with Jackson using the
+ * property's full generic type, e.g. {@code List<RoundTemplate>}.
  */
 @Component
 public class DatabaseRecordMapper {
 
     private static final String DATA = "data";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Maps a single record into an instance of the given Immutables
@@ -69,8 +81,16 @@ public class DatabaseRecordMapper {
                 final String name = field.getName();
                 final Object value = jooqRecord.get(field);
 
+                // Null columns are left unset on the builder: @Nullable
+                // properties stay null, @Default properties take their
+                // default, and Immutables' maps and non-null setters would
+                // otherwise reject the null with an NPE.
+                if (value == null) {
+                    continue;
+                }
+
                 if (propertiesByName.containsKey(name)) {
-                    setBuilderProperty(builderClass, builder, name, value);
+                    setBuilderProperty(builderClass, builder, propertiesByName.get(name), value);
                 } else {
                     putData(builderClass, builder, name, value);
                 }
@@ -93,18 +113,23 @@ public class DatabaseRecordMapper {
      * @param builderClass the builder's class, used to locate the setter
      *                     method via reflection.
      * @param builder the builder instance to invoke the setter method on.
-     * @param propertyName the name of the property to set, matching the
-     *                     builder method's name.
+     * @param property the property to set; its name matches the builder
+     *                 method's name and its getter's generic return type is
+     *                 used when deserialising JSON values.
      * @param value the value to set, coerced to the target parameter type
      *              if necessary.
      * @throws ReflectiveOperationException if the matching builder method
      *                                       cannot be invoked.
      */
-    private void setBuilderProperty(Class<?> builderClass, Object builder, String propertyName, Object value) throws ReflectiveOperationException {
+    private void setBuilderProperty(Class<?> builderClass, Object builder, PropertyDescriptor property, Object value) throws ReflectiveOperationException {
+
+        final Type genericType = property.getReadMethod() != null
+            ? property.getReadMethod().getGenericReturnType()
+            : property.getPropertyType();
 
         for (Method method : builderClass.getMethods()) {
-            if (method.getName().equals(propertyName) && method.getParameterCount() == 1) {
-                method.invoke(builder, coerce(value, method.getParameterTypes()[0]));
+            if (method.getName().equals(property.getName()) && method.getParameterCount() == 1) {
+                method.invoke(builder, coerce(value, method.getParameterTypes()[0], genericType));
                 return;
             }
         }
@@ -118,6 +143,10 @@ public class DatabaseRecordMapper {
      * <p>If the target type's builder has no such method - e.g. because its
      * type doesn't extend {@code DatabaseRecord} - the value is silently
      * skipped.
+     *
+     * <p>Callers must not pass {@code null} values: Immutables maps reject
+     * them. Null unmatched columns are omitted from the {@code data} map,
+     * so {@code getData().get(key)} still returns {@code null} for them.
      *
      * @param builderClass the builder's class, used to locate the
      *                     {@code putData} method via reflection.
@@ -159,13 +188,30 @@ public class DatabaseRecordMapper {
      * <p>If the value is already an instance of the target type, or no
      * known conversion applies, it is returned unchanged.
      *
+     * <p>JSON column values ({@link JSON} / {@link JSONB}), and strings
+     * being set onto collection or map properties, are deserialised into
+     * the property's generic type.
+     *
      * @param value the value to coerce.
-     * @param targetType the type to coerce the value to.
+     * @param targetType the builder parameter type to coerce the value to.
+     * @param genericType the property's full generic type, used when
+     *                    deserialising JSON.
      * @return the coerced value.
      */
-    private Object coerce(Object value, Class<?> targetType) {
+    private Object coerce(Object value, Class<?> targetType, Type genericType) {
         if (value == null || targetType.isInstance(value)) {
             return value;
+        }
+
+        if (value instanceof JSONB jsonb && targetType != String.class) {
+            return fromJson(jsonb.data(), genericType);
+        }
+        if (value instanceof JSON json && targetType != String.class) {
+            return fromJson(json.data(), genericType);
+        }
+        if (value instanceof String string
+            && (Iterable.class.isAssignableFrom(targetType) || Map.class.isAssignableFrom(targetType))) {
+            return fromJson(string, genericType);
         }
 
         if ((targetType == int.class || targetType == Integer.class) && value instanceof Number number) {
@@ -180,6 +226,54 @@ public class DatabaseRecordMapper {
         if (targetType == String.class) {
             return value.toString();
         }
+        if (targetType.isEnum() && value instanceof String name) {
+            return toEnumConstant(name, targetType);
+        }
         return value;
+    }
+
+    /**
+     * Deserialises a JSON string into the given generic type.
+     *
+     * @param json the JSON string.
+     * @param type the type to deserialise into, e.g. {@code List<RoundTemplate>}.
+     * @return the deserialised value.
+     * @throws IllegalArgumentException if the JSON cannot be deserialised
+     *                                  into the given type.
+     */
+    private Object fromJson(String json, Type type) {
+        try {
+            return objectMapper.readValue(json, objectMapper.getTypeFactory().constructType(type));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Unable to deserialise JSON into " + type.getTypeName(), e);
+        }
+    }
+
+    /**
+     * Resolves the enum constant of the given type matching the given name.
+     * An exact match on the constant's name is preferred; failing that, a
+     * case-insensitive match is accepted, since database enum labels are
+     * commonly lower-case while Java constants are upper-case.
+     *
+     * @param name the column value to resolve.
+     * @param enumType the enum type to resolve the constant from.
+     * @return the matching enum constant.
+     * @throws IllegalArgumentException if no constant matches the name.
+     */
+    private Object toEnumConstant(String name, Class<?> enumType) {
+        Object caseInsensitiveMatch = null;
+        for (Object constant : enumType.getEnumConstants()) {
+            final String constantName = ((Enum<?>) constant).name();
+            if (constantName.equals(name)) {
+                return constant;
+            }
+            if (caseInsensitiveMatch == null && constantName.equalsIgnoreCase(name)) {
+                caseInsensitiveMatch = constant;
+            }
+        }
+        if (caseInsensitiveMatch != null) {
+            return caseInsensitiveMatch;
+        }
+        throw new IllegalArgumentException("No constant of " + enumType.getName() + " matches value '" + name + "'");
     }
 }

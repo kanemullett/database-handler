@@ -85,6 +85,7 @@ public class TableBuilderFunction implements Function<TableDefinition, Query> {
             case INTEGER -> SQLDataType.INTEGER;
             case TIMESTAMP_WITHOUT_TIME_ZONE -> SQLDataType.TIMESTAMP;
             case BOOLEAN -> SQLDataType.BOOLEAN;
+            case JSONB -> SQLDataType.JSONB;
         };
     }
 }
