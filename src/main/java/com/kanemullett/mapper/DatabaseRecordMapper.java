@@ -5,6 +5,12 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -209,32 +215,90 @@ public class DatabaseRecordMapper {
         if (value == null || targetType.isInstance(value)) {
             return value;
         }
-
-        if (value instanceof JSONB jsonb && targetType != String.class) {
-            return fromJson(jsonb.data(), genericType);
-        }
-        if (value instanceof JSON json && targetType != String.class) {
-            return fromJson(json.data(), genericType);
-        }
-        if (value instanceof String string
-            && (Iterable.class.isAssignableFrom(targetType) || Map.class.isAssignableFrom(targetType))) {
-            return fromJson(string, genericType);
-        }
-
-        if ((targetType == int.class || targetType == Integer.class) && value instanceof Number number) {
-            return number.intValue();
-        }
-        if ((targetType == long.class || targetType == Long.class) && value instanceof Number number) {
-            return number.longValue();
-        }
-        if ((targetType == double.class || targetType == Double.class) && value instanceof Number number) {
-            return number.doubleValue();
-        }
         if (targetType == String.class) {
             return value.toString();
         }
+
+        final String json = jsonText(value, targetType);
+        if (json != null) {
+            return fromJson(json, genericType);
+        }
+        if (value instanceof java.util.Date legacyTemporal) {
+            return coerceLegacyTemporal(legacyTemporal, targetType);
+        }
+        if (value instanceof Number number) {
+            return coerceNumber(number, targetType);
+        }
         if (targetType.isEnum() && value instanceof String name) {
             return toEnumConstant(name, targetType);
+        }
+        return value;
+    }
+
+    /**
+     * Returns the JSON text to deserialise for a value, if it should be
+     * treated as JSON: {@link JSON} / {@link JSONB} column values, or a
+     * string being set onto a collection or map property.
+     *
+     * @param value the column value.
+     * @param targetType the builder parameter type.
+     * @return the JSON text, or {@code null} if the value isn't JSON.
+     */
+    private String jsonText(Object value, Class<?> targetType) {
+        if (value instanceof JSONB jsonb) {
+            return jsonb.data();
+        }
+        if (value instanceof JSON json) {
+            return json.data();
+        }
+        final boolean structuredTarget = Iterable.class.isAssignableFrom(targetType)
+            || Map.class.isAssignableFrom(targetType);
+        return structuredTarget && value instanceof String string ? string : null;
+    }
+
+    /**
+     * Converts a legacy JDBC temporal value ({@link Timestamp},
+     * {@link java.sql.Date}, {@link Time}) to its {@code java.time}
+     * equivalent. Depending on how a query is built, jOOQ can hand these
+     * back instead of {@code java.time} types.
+     *
+     * @param value the legacy temporal value.
+     * @param targetType the builder parameter type.
+     * @return the converted value, or the original if no conversion applies.
+     */
+    private Object coerceLegacyTemporal(java.util.Date value, Class<?> targetType) {
+        if (value instanceof Timestamp timestamp && targetType == LocalDateTime.class) {
+            return timestamp.toLocalDateTime();
+        }
+        if (value instanceof Timestamp timestamp && targetType == Instant.class) {
+            return timestamp.toInstant();
+        }
+        if (value instanceof java.sql.Date date && targetType == LocalDate.class) {
+            return date.toLocalDate();
+        }
+        if (value instanceof Time time && targetType == LocalTime.class) {
+            return time.toLocalTime();
+        }
+        return value;
+    }
+
+    /**
+     * Converts a numeric value to the target numeric type, e.g. a
+     * {@code Long} column value being set onto an {@code int} property.
+     *
+     * @param value the numeric value.
+     * @param targetType the builder parameter type.
+     * @return the converted value, or the original if no conversion applies.
+     */
+    private Object coerceNumber(Number value, Class<?> targetType) {
+        if (targetType == int.class || targetType == Integer.class) {
+            return value.intValue();
+        }
+        if (targetType == long.class || targetType == Long.class) {
+            return value.longValue();
+        }
+        if (targetType == double.class || targetType == Double.class) {
+            return value.doubleValue();
         }
         return value;
     }

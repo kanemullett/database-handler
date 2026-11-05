@@ -6,7 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -56,6 +61,18 @@ public class DatabaseRecordMapperTest {
 
         @Nullable
         List<OffsetDateTime> getDeadlines();
+
+        @Nullable
+        LocalDateTime getKickoff();
+
+        @Nullable
+        Instant getCreatedAt();
+
+        @Nullable
+        LocalDate getMatchDate();
+
+        @Nullable
+        LocalTime getStartTime();
     }
 
     @Immutable
@@ -350,5 +367,66 @@ public class DatabaseRecordMapperTest {
 
         // Then
         assertEquals(List.of(OffsetDateTime.of(2026, 6, 11, 20, 0, 0, 0, ZoneOffset.ofHours(1))), result.getDeadlines());
+    }
+
+    @Test
+    void shouldCoerceTimestampColumnsToLocalDateTime() {
+        // Given
+        final LocalDateTime kickoff = LocalDateTime.of(2026, 6, 11, 20, 0);
+
+        final Field<String> id = DSL.field(DSL.name("id"), String.class);
+        final Field<Timestamp> kickoffField = DSL.field(DSL.name("kickoff"), Timestamp.class);
+
+        final Record record = DSL_CONTEXT.newRecord(id, kickoffField);
+
+        record.set(id, "id1");
+        record.set(kickoffField, Timestamp.valueOf(kickoff));
+
+        // When
+        final TestDatabaseRecord result = mapper.map(record, TestDatabaseRecord.class);
+
+        // Then
+        assertEquals(kickoff, result.getKickoff());
+    }
+
+    @Test
+    void shouldCoerceTimestampColumnsToInstant() {
+        // Given
+        final Instant createdAt = Instant.parse("2026-06-11T19:00:00Z");
+
+        final Field<String> id = DSL.field(DSL.name("id"), String.class);
+        final Field<Timestamp> createdAtField = DSL.field(DSL.name("createdAt"), Timestamp.class);
+
+        final Record record = DSL_CONTEXT.newRecord(id, createdAtField);
+
+        record.set(id, "id1");
+        record.set(createdAtField, Timestamp.from(createdAt));
+
+        // When
+        final TestDatabaseRecord result = mapper.map(record, TestDatabaseRecord.class);
+
+        // Then
+        assertEquals(createdAt, result.getCreatedAt());
+    }
+
+    @Test
+    void shouldCoerceSqlDateAndTimeColumnsToLocalDateAndLocalTime() {
+        // Given
+        final Field<String> id = DSL.field(DSL.name("id"), String.class);
+        final Field<java.sql.Date> matchDate = DSL.field(DSL.name("matchDate"), java.sql.Date.class);
+        final Field<Time> startTime = DSL.field(DSL.name("startTime"), Time.class);
+
+        final Record record = DSL_CONTEXT.newRecord(id, matchDate, startTime);
+
+        record.set(id, "id1");
+        record.set(matchDate, java.sql.Date.valueOf(LocalDate.of(2026, 6, 11)));
+        record.set(startTime, Time.valueOf(LocalTime.of(20, 0)));
+
+        // When
+        final TestDatabaseRecord result = mapper.map(record, TestDatabaseRecord.class);
+
+        // Then
+        assertEquals(LocalDate.of(2026, 6, 11), result.getMatchDate());
+        assertEquals(LocalTime.of(20, 0), result.getStartTime());
     }
 }
