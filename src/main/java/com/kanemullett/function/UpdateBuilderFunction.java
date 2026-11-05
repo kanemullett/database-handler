@@ -1,18 +1,31 @@
 package com.kanemullett.function;
 
+import java.io.IOException;
+import java.time.temporal.Temporal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.jooq.CaseConditionStep;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.JSONB;
 import org.jooq.Query;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
 import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.UpdateRequest;
 import com.kanemullett.util.BuilderUtils;
@@ -23,7 +36,9 @@ import com.kanemullett.util.BuilderUtils;
  *
  * <p>Handles INSERT, UPDATE, and DELETE operations. Records are converted from
  * typed {@link DatabaseRecord} instances to column/value maps via Jackson
- * before being used to construct the query.
+ * before being used to construct the query. Collection, map and nested
+ * object values are serialised to JSON and bound as {@code jsonb}, so the
+ * corresponding columns should be declared as {@code jsonb}.
  *
  * <p>UPDATE queries use a bulk CASE/WHEN pattern to update multiple records
  * in a single statement, keyed on the {@code id} field.
@@ -44,7 +59,8 @@ public class UpdateBuilderFunction {
      */
     public UpdateBuilderFunction(DSLContext dsl) {
         this.dsl = dsl;
-        this.mapper = new ObjectMapper();
+        this.mapper = new ObjectMapper()
+            .registerModule(new SimpleModule().addSerializer(Temporal.class, new TemporalPassthroughSerializer()));
     }
 
     /**
@@ -106,13 +122,20 @@ public class UpdateBuilderFunction {
      * generated per column, with a WHERE condition scoped to the provided
      * record IDs.
      *
+     * <p>Unset ({@code null}) properties are treated as "leave unchanged":
+     * they are omitted from the record, so that record's row falls through
+     * to the CASE's {@code ELSE} branch and keeps its current value. A column
+     * is only included in the SET clause if at least one record sets it.
+     *
      * @param request the update request containing the records to update.
      * @return the constructed UPDATE {@link Query}.
      * @throws IllegalArgumentException if any record is missing the {@code id}
-     *                                  field.
+     *                                  field, or if no record sets any column
+     *                                  other than {@code id}.
      */
     private <T extends DatabaseRecord> Query buildUpdate(UpdateRequest<T> request) {
         final List<Map<String, Object>> records = toMaps(request.getRecords());
+        records.forEach(dbRecord -> dbRecord.values().removeIf(Objects::isNull));
 
         final boolean allHaveId = records.stream().allMatch(r -> r.containsKey("id"));
 
@@ -128,6 +151,12 @@ public class UpdateBuilderFunction {
             .distinct()
             .sorted()
             .toList();
+
+        if (columns.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Update requests should set at least one column other than id."
+            );
+        }
 
         var update = dsl.update(buildTable(request.getTable()));
 
@@ -162,20 +191,22 @@ public class UpdateBuilderFunction {
      * @return the constructed CASE/WHEN {@link Field}.
      */
     private Field<Object> buildCaseField(String column, List<Map<String, Object>> records) {
-        var caseStep = DSL.case_();
+        CaseConditionStep<Object> whenStep = null;
 
-        var whenStep = records.stream()
-            .filter(r -> r.containsKey(column))
-            .reduce(
-                (CaseConditionStep<Object>) null,
-                (acc, dbRecord) -> {
-                    var condition = DSL.field(DSL.name("id")).eq(dbRecord.get("id"));
-                    return acc == null
-                        ? caseStep.when(condition, dbRecord.get(column))
-                        : acc.when(condition, dbRecord.get(column));
-                },
-                (a, b) -> b
-            );
+        for (Map<String, Object> dbRecord : records) {
+            if (!dbRecord.containsKey(column)) {
+                continue;
+            }
+            final Condition condition = DSL.field(DSL.name("id")).eq(dbRecord.get("id"));
+            final Field<Object> result = toField(dbRecord.get(column));
+            whenStep = whenStep == null
+                ? DSL.when(condition, result)
+                : whenStep.when(condition, result);
+        }
+
+        if (whenStep == null) {
+            return DSL.field(DSL.name(column));
+        }
 
         return whenStep.otherwise(DSL.field(DSL.name(column)));
     }
@@ -217,6 +248,11 @@ public class UpdateBuilderFunction {
      * Converts a list of typed {@link DatabaseRecord} instances to a list of
      * column/value maps using Jackson.
      *
+     * <p>Jackson converts collection, map and nested object properties into
+     * raw {@link java.util.ArrayList} / {@link java.util.LinkedHashMap} instances, which
+     * jOOQ has no binding for. Such values are therefore serialised to JSON
+     * and wrapped as {@code jsonb} bind values.
+     *
      * @param records the records to convert.
      * @return the list of column/value maps.
      */
@@ -225,8 +261,74 @@ public class UpdateBuilderFunction {
             .map(dbRecord -> {
                 final Map<String, Object> map = mapper.convertValue(dbRecord, new TypeReference<Map<String, Object>>() {});
                 map.remove("data");
+                map.replaceAll((column, value) -> toBindValue(value));
                 return map;
             })
             .toList();
+    }
+
+    /**
+     * Converts a structured value (collection or map) into a {@code jsonb}
+     * bind value. Any other value is returned unchanged.
+     *
+     * @param value the column value to convert.
+     * @return a {@code jsonb} {@link Field} for structured values, otherwise
+     *         the original value.
+     * @throws IllegalArgumentException if the value cannot be serialised to
+     *                                  JSON.
+     */
+    private Object toBindValue(Object value) {
+        if (!(value instanceof Collection<?>) && !(value instanceof Map<?, ?>)) {
+            return value;
+        }
+        try {
+            return DSL.val(JSONB.valueOf(mapper.writeValueAsString(value)), SQLDataType.JSONB);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Unable to serialise value to JSON: " + value, e);
+        }
+    }
+
+    /**
+     * Wraps a column value as a jOOQ {@link Field}, passing through values
+     * that are already fields (e.g. typed {@code jsonb} bind values).
+     *
+     * @param value the column value.
+     * @return the value as a {@link Field}.
+     */
+    @SuppressWarnings("unchecked")
+    private static Field<Object> toField(Object value) {
+        return value instanceof Field<?> field ? (Field<Object>) field : DSL.val(value);
+    }
+
+    /**
+     * Serialises {@code java.time} values (e.g. {@link java.time.LocalDateTime})
+     * so that they reach jOOQ unchanged.
+     *
+     * <p>When converting a record to a column/value map, Jackson buffers
+     * tokens in a {@link TokenBuffer}; the value is written there as an
+     * embedded object, so {@code convertValue} hands back the original
+     * instance and jOOQ binds it with its proper temporal type. Without this,
+     * Jackson either rejects the type outright (no JSR-310 module) or turns
+     * it into an array/string that jOOQ would bind as {@code jsonb} or
+     * {@code varchar}.
+     *
+     * <p>When writing real JSON (e.g. a date nested inside a collection that
+     * is stored as {@code jsonb}), the value is written as its ISO-8601
+     * string instead.
+     */
+    private static final class TemporalPassthroughSerializer extends StdSerializer<Temporal> {
+
+        private TemporalPassthroughSerializer() {
+            super(Temporal.class);
+        }
+
+        @Override
+        public void serialize(Temporal value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+            if (gen instanceof TokenBuffer) {
+                gen.writeEmbeddedObject(value);
+            } else {
+                gen.writeString(value.toString());
+            }
+        }
     }
 }
