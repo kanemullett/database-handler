@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +50,12 @@ public class DatabaseRecordMapperTest {
 
         @Nullable
         Map<String, Integer> getScores();
+
+        @Nullable
+        List<LocalDateTime> getReminders();
+
+        @Nullable
+        List<OffsetDateTime> getDeadlines();
     }
 
     @Immutable
@@ -301,5 +310,45 @@ public class DatabaseRecordMapperTest {
 
         // Then
         assertTrue(exception.getCause().getCause().getMessage().contains("title"));
+    }
+
+    @Test
+    void shouldDeserialiseIsoDateTimesNestedInJsonbColumns() {
+        // Given
+        final Field<String> id = DSL.field(DSL.name("id"), String.class);
+        final Field<JSONB> reminders = DSL.field(DSL.name("reminders"), JSONB.class);
+
+        final Record record = DSL_CONTEXT.newRecord(id, reminders);
+
+        // LocalDateTime.toString() omits zero seconds, as in the first value
+        record.set(id, "id1");
+        record.set(reminders, JSONB.valueOf("[\"2026-06-11T20:00\",\"2026-06-11T19:00:30\"]"));
+
+        // When
+        final TestDatabaseRecord result = mapper.map(record, TestDatabaseRecord.class);
+
+        // Then
+        assertEquals(List.of(
+            LocalDateTime.of(2026, 6, 11, 20, 0),
+            LocalDateTime.of(2026, 6, 11, 19, 0, 30)
+        ), result.getReminders());
+    }
+
+    @Test
+    void shouldPreserveOffsetsOfDateTimesNestedInJsonbColumns() {
+        // Given
+        final Field<String> id = DSL.field(DSL.name("id"), String.class);
+        final Field<JSONB> deadlines = DSL.field(DSL.name("deadlines"), JSONB.class);
+
+        final Record record = DSL_CONTEXT.newRecord(id, deadlines);
+
+        record.set(id, "id1");
+        record.set(deadlines, JSONB.valueOf("[\"2026-06-11T20:00+01:00\"]"));
+
+        // When
+        final TestDatabaseRecord result = mapper.map(record, TestDatabaseRecord.class);
+
+        // Then
+        assertEquals(List.of(OffsetDateTime.of(2026, 6, 11, 20, 0, 0, 0, ZoneOffset.ofHours(1))), result.getDeadlines());
     }
 }

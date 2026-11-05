@@ -15,7 +15,9 @@ import org.jooq.Record;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Maps flat jOOQ {@link Record} instances onto Immutables-style domain
@@ -47,7 +49,12 @@ public class DatabaseRecordMapper {
 
     private static final String DATA = "data";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // JavaTimeModule parses the ISO-8601 strings UpdateBuilderFunction writes
+    // for java.time values nested inside jsonb columns. Offsets are kept as
+    // stored rather than normalised to UTC, so values round-trip unchanged.
+    private final ObjectMapper objectMapper = new ObjectMapper()
+        .registerModule(new JavaTimeModule())
+        .disable(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
 
     /**
      * Maps a single record into an instance of the given Immutables

@@ -1,5 +1,7 @@
 package com.kanemullett.function;
 
+import java.io.IOException;
+import java.time.temporal.Temporal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -16,9 +18,14 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
 import com.kanemullett.model.DatabaseRecord;
 import com.kanemullett.model.UpdateRequest;
 import com.kanemullett.util.BuilderUtils;
@@ -52,7 +59,8 @@ public class UpdateBuilderFunction {
      */
     public UpdateBuilderFunction(DSLContext dsl) {
         this.dsl = dsl;
-        this.mapper = new ObjectMapper();
+        this.mapper = new ObjectMapper()
+            .registerModule(new SimpleModule().addSerializer(Temporal.class, new TemporalPassthroughSerializer()));
     }
 
     /**
@@ -290,5 +298,37 @@ public class UpdateBuilderFunction {
     @SuppressWarnings("unchecked")
     private static Field<Object> toField(Object value) {
         return value instanceof Field<?> field ? (Field<Object>) field : DSL.val(value);
+    }
+
+    /**
+     * Serialises {@code java.time} values (e.g. {@link java.time.LocalDateTime})
+     * so that they reach jOOQ unchanged.
+     *
+     * <p>When converting a record to a column/value map, Jackson buffers
+     * tokens in a {@link TokenBuffer}; the value is written there as an
+     * embedded object, so {@code convertValue} hands back the original
+     * instance and jOOQ binds it with its proper temporal type. Without this,
+     * Jackson either rejects the type outright (no JSR-310 module) or turns
+     * it into an array/string that jOOQ would bind as {@code jsonb} or
+     * {@code varchar}.
+     *
+     * <p>When writing real JSON (e.g. a date nested inside a collection that
+     * is stored as {@code jsonb}), the value is written as its ISO-8601
+     * string instead.
+     */
+    private static final class TemporalPassthroughSerializer extends StdSerializer<Temporal> {
+
+        private TemporalPassthroughSerializer() {
+            super(Temporal.class);
+        }
+
+        @Override
+        public void serialize(Temporal value, JsonGenerator gen, SerializerProvider provider) throws IOException {
+            if (gen instanceof TokenBuffer) {
+                gen.writeEmbeddedObject(value);
+            } else {
+                gen.writeString(value.toString());
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.kanemullett.function;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +45,17 @@ public class UpdateBuilderFunctionTest {
 
         @Nullable
         Integer getAge();
+    }
+
+    @Immutable
+    @JsonSerialize(as=ImmutableScheduledRecord.class)
+    @JsonDeserialize(as=ImmutableScheduledRecord.class)
+    interface ScheduledRecord extends DatabaseRecord {
+        @Nullable
+        LocalDateTime getKickoff();
+
+        @Nullable
+        List<LocalDateTime> getReminders();
     }
 
     @Immutable
@@ -364,5 +376,81 @@ public class UpdateBuilderFunctionTest {
         assertEquals(expected, query.getSQL());
         assertEquals(List.of("id1", "{\"x\":1}", "id1", "[\"a\"]", "id1"),
             query.getBindValues().stream().map(String::valueOf).toList());
+    }
+
+    @Test
+    void shouldBindLocalDateTimeValuesUnchangedOnInsert() {
+        // Given
+        final LocalDateTime kickoff = LocalDateTime.of(2026, 6, 11, 20, 0);
+
+        final UpdateRequest<ScheduledRecord> request = ImmutableUpdateRequest.<ScheduledRecord>builder()
+            .operation(SqlOperator.INSERT)
+            .table(Table.of("test_schema", "test_table"))
+            .records(List.of(
+                ImmutableScheduledRecord.builder()
+                    .id("id1")
+                    .kickoff(kickoff)
+                    .build()
+            ))
+            .recordClass(ScheduledRecord.class)
+            .build();
+
+        final String expected = "insert into \"test_schema\".\"test_table\" (\"id\", \"kickoff\", \"reminders\") values (?, cast(? as timestamp), ?)";
+
+        // When
+        final Query query = function.apply(request);
+
+        // Then
+        assertEquals(expected, query.getSQL());
+        assertEquals(kickoff, query.getBindValues().get(1));
+    }
+
+    @Test
+    void shouldBindLocalDateTimeValuesUnchangedOnUpdate() {
+        // Given
+        final LocalDateTime kickoff = LocalDateTime.of(2026, 6, 11, 20, 0);
+
+        final UpdateRequest<ScheduledRecord> request = ImmutableUpdateRequest.<ScheduledRecord>builder()
+            .operation(SqlOperator.UPDATE)
+            .table(Table.of("test_schema", "test_table"))
+            .records(List.of(
+                ImmutableScheduledRecord.builder()
+                    .id("id1")
+                    .kickoff(kickoff)
+                    .build()
+            ))
+            .recordClass(ScheduledRecord.class)
+            .build();
+
+        final String expected = "update \"test_schema\".\"test_table\" set \"kickoff\" = case when \"id\" = ? then cast(? as timestamp) else \"kickoff\" end where \"id\" in (?)";
+
+        // When
+        final Query query = function.apply(request);
+
+        // Then
+        assertEquals(expected, query.getSQL());
+        assertEquals(kickoff, query.getBindValues().get(1));
+    }
+
+    @Test
+    void shouldWriteNestedLocalDateTimeValuesAsIsoStringsInJsonb() {
+        // Given
+        final UpdateRequest<ScheduledRecord> request = ImmutableUpdateRequest.<ScheduledRecord>builder()
+            .operation(SqlOperator.UPDATE)
+            .table(Table.of("test_schema", "test_table"))
+            .records(List.of(
+                ImmutableScheduledRecord.builder()
+                    .id("id1")
+                    .reminders(List.of(LocalDateTime.of(2026, 6, 11, 19, 0, 30)))
+                    .build()
+            ))
+            .recordClass(ScheduledRecord.class)
+            .build();
+
+        // When
+        final Query query = function.apply(request);
+
+        // Then
+        assertEquals("[\"2026-06-11T19:00:30\"]", String.valueOf(query.getBindValues().get(1)));
     }
 }
