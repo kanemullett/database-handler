@@ -39,7 +39,14 @@ import org.springframework.context.annotation.PropertySource;
  *       before jOOQ's {@code DSLContext} is available. Baseline-on-migrate
  *       is disabled: a non-empty schema with no Flyway history table fails
  *       startup rather than silently skipping migrations.</li>
+ *   <li><b>Table definitions (optional):</b> JSON table definitions in
+ *       {@code classpath*:definitions/tables/**}{@code /*.json} are created
+ *       on startup, after migrations, if they don't already exist. See
+ *       {@link com.kanemullett.initialiser.TableInitialiser}.</li>
  * </ul>
+ *
+ * <p>The module's beans are registered separately, by
+ * {@link DatabaseHandlerBeansAutoConfiguration}.
  *
  * <p>This class is ordered before the DataSource, Flyway and jOOQ
  * auto-configurations so that its property source is in place when their

@@ -6,10 +6,10 @@ import org.jooq.Constraint;
 import org.jooq.CreateTableElementListStep;
 import org.jooq.DSLContext;
 import org.jooq.DataType;
+import org.jooq.Nullability;
 import org.jooq.Query;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
-import org.springframework.stereotype.Component;
 
 import com.kanemullett.model.ColumnDefinition;
 import com.kanemullett.model.TableDefinition;
@@ -20,10 +20,12 @@ import com.kanemullett.model.type.SqlDataType;
  * {@code CREATE TABLE IF NOT EXISTS} statements from {@link TableDefinition}
  * objects.
  *
- * <p>Handles column definitions with their respective data types and
- * primary key constraints.
+ * <p>Handles column definitions with their respective data types,
+ * nullability and primary key constraints. Columns are rendered as
+ * {@code NOT NULL} unless {@link ColumnDefinition#isNullable()} is
+ * {@code true}, in which case no nullability is rendered and PostgreSQL's
+ * default (nullable) applies.
  */
-@Component
 public class TableBuilderFunction implements Function<TableDefinition, Query> {
 
     private final DSLContext dsl;
@@ -58,6 +60,7 @@ public class TableBuilderFunction implements Function<TableDefinition, Query> {
             query = query.column(
                 DSL.field(DSL.name(column.getName())),
                 mapDataType(column.getDataType())
+                    .nullability(column.isNullable() ? Nullability.DEFAULT : Nullability.NOT_NULL)
             );
         }
 

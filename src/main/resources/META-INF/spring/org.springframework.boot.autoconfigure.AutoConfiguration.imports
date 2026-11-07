@@ -1,1 +1,2 @@
 com.kanemullett.config.DatabaseHandlerAutoConfiguration
+com.kanemullett.config.DatabaseHandlerBeansAutoConfiguration

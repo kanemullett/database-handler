@@ -18,7 +18,6 @@ import org.jooq.Field;
 import org.jooq.JSON;
 import org.jooq.JSONB;
 import org.jooq.Record;
-import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -50,7 +49,6 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * as JSON ({@code jsonb}) and are deserialised with Jackson using the
  * property's full generic type, e.g. {@code List<RoundTemplate>}.
  */
-@Component
 public class DatabaseRecordMapper {
 
     private static final String DATA = "data";

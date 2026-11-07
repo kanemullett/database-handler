@@ -2,9 +2,11 @@
 
 A Spring Boot library for working with PostgreSQL through jOOQ, using
 Immutables-style domain records. Add it as a dependency and it sets up the
-datasource, runs your Flyway migrations, and provides
-`DatabaseQueryService` and `DatabaseTableService` for building and running
-queries.
+datasource, runs your Flyway migrations, creates any tables you describe in
+JSON, and provides `DatabaseQueryService`, `DatabaseTableService` and
+`DatabaseSchemaService` for building and running queries. These beans are
+auto-configured, so you don't need to component-scan `com.kanemullett`, and
+you can replace any of them by defining your own bean of the same type.
 
 ## Installation
 
@@ -77,6 +79,56 @@ Only PostgreSQL is supported. jOOQ's dialect is fixed to `POSTGRES`.
 Collection, map and nested-object properties on records are stored as
 `jsonb`, so declare those columns as `jsonb`.
 
+## Creating tables from JSON definitions
+
+This is optional. Put one JSON file per table in
+`src/main/resources/definitions/tables/` (subfolders are fine). On startup,
+each table is created if it doesn't already exist:
+
+```json
+{
+  "schema": "app",
+  "table": "users",
+  "columns": [
+    { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
+    { "name": "email", "dataType": "VARCHAR" },
+    { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" },
+    { "name": "settings", "dataType": "JSONB", "isNullable": true }
+  ]
+}
+```
+
+- `dataType` is one of `VARCHAR`, `INTEGER`, `BOOLEAN`,
+  `TIMESTAMP_WITHOUT_TIME_ZONE` or `JSONB`.
+- `primaryKey` defaults to `false`. Mark more than one column to get a
+  composite key.
+- `isNullable` defaults to `false`, so columns are `NOT NULL` unless you set
+  `"isNullable": true`. Primary key columns are always `NOT NULL`.
+- Your application works within a single schema, so every file should use
+  the same `schema`. It is created if it doesn't exist.
+- Names are quoted, so they are case-sensitive. Stick to lowercase.
+
+How it behaves:
+
+- **Runs after Flyway.** Migrations run first, so a migration can't rely on a
+  table that's defined in JSON.
+- **Only creates, never alters.** Tables are created with
+  `CREATE TABLE IF NOT EXISTS`, so editing the JSON for a table that already
+  exists does nothing. Change existing tables with a Flyway migration.
+- **Fails fast.** Every file is read before anything is created. A file that
+  isn't valid JSON, isn't an object, or has an unknown field value such as a
+  misspelled `dataType` stops startup with an error naming the file, and no
+  tables are created.
+
+To switch it off, for example in tests or where the database user isn't
+allowed to run DDL:
+
+```properties
+database-handler.tables.enabled=false
+```
+
+or `DATABASE_HANDLER_TABLES_ENABLED=false` as an environment variable.
+
 ## Overriding defaults
 
 The library's defaults live in `database-handler.properties` and are loaded
@@ -88,6 +140,24 @@ example:
 spring.datasource.hikari.maximum-pool-size=5
 spring.flyway.locations=classpath:db/migration,classpath:db/seed
 ```
+
+## What's new in 3.1.0
+
+- **Tables from JSON definitions.** See
+  [Creating tables from JSON definitions](#creating-tables-from-json-definitions).
+- **Column nullability.** `ColumnDefinition` has an `isNullable` flag, which
+  defaults to `false`. **This changes `DatabaseTableService.createTable`:**
+  columns used to be created nullable, and are now `NOT NULL` unless you
+  build them with `.isNullable(true)`. Tables that already exist are not
+  affected.
+- **`DatabaseSchemaService`** with `createSchema` and `deleteSchema`.
+  `deleteSchema(schema, false)` refuses to drop a schema that isn't empty;
+  `deleteSchema(schema, true)` drops it and everything in it.
+- **Beans are auto-configured.** The services, builder functions and record
+  mapper used to be plain `@Service`/`@Component` classes, so you only got
+  them if your application happened to component-scan `com.kanemullett`. They
+  are now registered by auto-configuration, and each one backs off if you
+  define your own.
 
 ## Upgrading from 2.x
 

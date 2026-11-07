@@ -1,11 +1,13 @@
 package com.kanemullett.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.MigrationVersion;
@@ -25,10 +27,24 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.kanemullett.function.QueryBuilderFunction;
+import com.kanemullett.function.TableBuilderFunction;
+import com.kanemullett.function.UpdateBuilderFunction;
+import com.kanemullett.initialiser.TableInitialiser;
+import com.kanemullett.mapper.DatabaseRecordMapper;
+import com.kanemullett.service.DatabaseQueryService;
+import com.kanemullett.service.DatabaseSchemaService;
+import com.kanemullett.service.DatabaseTableService;
+
 /**
  * Starts the module's auto-configuration against a real PostgreSQL instance,
  * configured only through the POSTGRES_* variables, and checks that Flyway
- * migrations actually run on startup.
+ * migrations actually run on startup, that the module's beans are registered,
+ * and that table definitions on the classpath are created.
+ *
+ * <p>The table definition under test is
+ * {@code src/test/resources/definitions/tables/widgets.json}, which creates
+ * {@code handler_test.widgets}.
  *
  * <p>The migration under test is registered as a {@link JavaMigration} bean,
  * which Spring Boot's Flyway auto-configuration applies alongside any found
@@ -44,6 +60,7 @@ class DatabaseHandlerAutoConfigurationTest {
         return new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                 DatabaseHandlerAutoConfiguration.class,
+                DatabaseHandlerBeansAutoConfiguration.class,
                 DataSourceAutoConfiguration.class,
                 TransactionAutoConfiguration.class,
                 FlywayAutoConfiguration.class,
@@ -130,6 +147,105 @@ class DatabaseHandlerAutoConfigurationTest {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasRootCauseInstanceOf(FlywayException.class);
         });
+    }
+
+    @Test
+    void shouldRegisterTheModuleBeans() {
+        contextRunner(POSTGRES.getDatabaseName()).run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context)
+                .hasSingleBean(QueryBuilderFunction.class)
+                .hasSingleBean(UpdateBuilderFunction.class)
+                .hasSingleBean(TableBuilderFunction.class)
+                .hasSingleBean(DatabaseRecordMapper.class)
+                .hasSingleBean(DatabaseQueryService.class)
+                .hasSingleBean(DatabaseTableService.class)
+                .hasSingleBean(DatabaseSchemaService.class)
+                .hasSingleBean(TableInitialiser.class);
+        });
+    }
+
+    @Test
+    void shouldCreateTablesFromDefinitionsOnStartup() throws SQLException {
+        // Given a fresh database
+        createDatabase("table_definitions");
+        final ApplicationContextRunner runner = contextRunner("table_definitions");
+
+        // When the application starts
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+
+            final DSLContext dsl = context.getBean(DSLContext.class);
+
+            // Then the schema and table from widgets.json exist, with every column and its nullability
+            assertThat(dsl.fetchValue(
+                "select count(*) from information_schema.schemata where schema_name = 'handler_test'"
+            )).isEqualTo(1L);
+            assertThat(dsl.fetchValues(
+                "select column_name || ':' || data_type || ':' || is_nullable from information_schema.columns "
+                    + "where table_schema = 'handler_test' and table_name = 'widgets' "
+                    + "order by ordinal_position"
+            )).isEqualTo(List.of(
+                "id:character varying:NO",
+                "name:character varying:NO",
+                "quantity:integer:YES",
+                "active:boolean:YES",
+                "created:timestamp without time zone:YES",
+                "attributes:jsonb:YES"
+            ));
+            assertThat(dsl.fetchValue(
+                "select kcu.column_name from information_schema.table_constraints tc "
+                    + "join information_schema.key_column_usage kcu "
+                    + "on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema "
+                    + "where tc.table_schema = 'handler_test' and tc.table_name = 'widgets' "
+                    + "and tc.constraint_type = 'PRIMARY KEY'"
+            )).isEqualTo("id");
+
+            dsl.execute("insert into handler_test.widgets (id, name) values ('w1', 'kept')");
+        });
+
+        // And a second start leaves the existing table and its data alone
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(DSLContext.class).fetchValue(
+                "select name from handler_test.widgets where id = 'w1'"
+            )).isEqualTo("kept");
+        });
+    }
+
+    @Test
+    void shouldNotCreateTablesWhenTheInitialiserIsDisabled() throws SQLException {
+        // Given a fresh database and the initialiser switched off
+        createDatabase("tables_disabled");
+
+        // When the application starts
+        contextRunner("tables_disabled")
+            .withPropertyValues("database-handler.tables.enabled=false")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+
+                // Then there is no initialiser, the other beans still exist, and nothing was created
+                assertThat(context)
+                    .doesNotHaveBean(TableInitialiser.class)
+                    .hasSingleBean(DatabaseTableService.class);
+                assertThat(context.getBean(DSLContext.class).fetchValue(
+                    "select count(*) from information_schema.schemata where schema_name = 'handler_test'"
+                )).isEqualTo(0L);
+            });
+    }
+
+    @Test
+    void shouldBackOffWhenTheApplicationDefinesItsOwnBean() {
+        final DatabaseSchemaService custom = mock(DatabaseSchemaService.class);
+
+        contextRunner(POSTGRES.getDatabaseName())
+            .withPropertyValues("database-handler.tables.enabled=false")
+            .withBean(DatabaseSchemaService.class, () -> custom)
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context).hasSingleBean(DatabaseSchemaService.class);
+                assertThat(context.getBean(DatabaseSchemaService.class)).isSameAs(custom);
+            });
     }
 
     /**

@@ -16,7 +16,6 @@ import org.jooq.Query;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
-import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -45,7 +44,6 @@ import com.kanemullett.util.BuilderUtils;
  *
  * @param <T> the type of {@link DatabaseRecord} the query is built for.
  */
-@Component
 public class UpdateBuilderFunction {
 
     private final DSLContext dsl;

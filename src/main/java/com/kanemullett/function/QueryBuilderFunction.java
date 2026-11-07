@@ -12,7 +12,6 @@ import org.jooq.Table;
 import org.jooq.TableLike;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
-import org.springframework.stereotype.Component;
 
 import com.kanemullett.model.Column;
 import com.kanemullett.model.DatabaseRecord;
@@ -36,7 +35,6 @@ import com.kanemullett.util.BuilderUtils;
  *
  * @param <T> the type of {@link DatabaseRecord} the query is built for.
  */
-@Component
 public class QueryBuilderFunction {
 
     private final DSLContext dsl;

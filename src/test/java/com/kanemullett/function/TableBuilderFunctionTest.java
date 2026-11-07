@@ -45,7 +45,42 @@ public class TableBuilderFunctionTest {
             ))
             .build();
 
-        final String expected = "create table if not exists \"test-schema\".\"test-table\" (\"id\" varchar, \"name\" varchar, \"age\" int, \"hasPets\" boolean, \"joinDate\" timestamp, primary key (\"id\"))";
+        final String expected = "create table if not exists \"test-schema\".\"test-table\" (\"id\" varchar not null, \"name\" varchar not null, \"age\" int not null, \"hasPets\" boolean not null, \"joinDate\" timestamp not null, primary key (\"id\"))";
+
+        // When
+        final Query query = function.apply(tableDefinition);
+
+        // Then
+        assertEquals(expected, query.getSQL());
+    }
+
+    @Test
+    void shouldOnlyRenderNotNullForColumnsThatAreNotNullable() {
+        // Given
+        final TableDefinition tableDefinition = ImmutableTableDefinition.builder()
+            .schema("test-schema")
+            .table("test-table")
+            .columns(List.of(
+                ImmutableColumnDefinition.builder()
+                    .name("id")
+                    .dataType(SqlDataType.VARCHAR)
+                    .primaryKey(true)
+                    .build(),
+                ImmutableColumnDefinition.builder()
+                    .name("nickname")
+                    .dataType(SqlDataType.VARCHAR)
+                    .isNullable(true)
+                    .build(),
+                ImmutableColumnDefinition.builder()
+                    .name("settings")
+                    .dataType(SqlDataType.JSONB)
+                    .isNullable(true)
+                    .build(),
+                ColumnDefinition.of("email", SqlDataType.VARCHAR)
+            ))
+            .build();
+
+        final String expected = "create table if not exists \"test-schema\".\"test-table\" (\"id\" varchar not null, \"nickname\" varchar, \"settings\" jsonb, \"email\" varchar not null, primary key (\"id\"))";
 
         // When
         final Query query = function.apply(tableDefinition);

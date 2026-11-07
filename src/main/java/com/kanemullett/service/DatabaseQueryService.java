@@ -6,7 +6,6 @@ import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.SelectQuery;
-import org.springframework.stereotype.Service;
 
 import com.kanemullett.function.QueryBuilderFunction;
 import com.kanemullett.function.UpdateBuilderFunction;
@@ -31,7 +30,6 @@ import com.kanemullett.model.UpdateRequest;
  *
  * @param <T> the type of {@link DatabaseRecord} this service operates on.
  */
-@Service
 public class DatabaseQueryService {
     private final DSLContext dsl;
     private final QueryBuilderFunction queryBuilderFunction;
