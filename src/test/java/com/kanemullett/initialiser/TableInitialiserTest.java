@@ -39,7 +39,7 @@ class TableInitialiserTest {
           "columns": [
             { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
             { "name": "email", "dataType": "VARCHAR" },
-            { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" }
+            { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE", "isNullable": true }
           ]
         }
         """;
@@ -129,11 +129,16 @@ class TableInitialiserTest {
 
         final List<ColumnDefinition> columns = users.getColumns();
         assertThat(columns)
-            .extracting(ColumnDefinition::getName, ColumnDefinition::getDataType, ColumnDefinition::getPrimaryKey)
+            .extracting(
+                ColumnDefinition::getName,
+                ColumnDefinition::getDataType,
+                ColumnDefinition::getPrimaryKey,
+                ColumnDefinition::isNullable
+            )
             .containsExactly(
-                tuple("id", SqlDataType.VARCHAR, true),
-                tuple("email", SqlDataType.VARCHAR, false),
-                tuple("created", SqlDataType.TIMESTAMP_WITHOUT_TIME_ZONE, false)
+                tuple("id", SqlDataType.VARCHAR, true, false),
+                tuple("email", SqlDataType.VARCHAR, false, false),
+                tuple("created", SqlDataType.TIMESTAMP_WITHOUT_TIME_ZONE, false, true)
             );
     }
 

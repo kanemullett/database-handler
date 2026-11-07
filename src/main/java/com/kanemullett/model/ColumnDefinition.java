@@ -9,7 +9,7 @@ import com.kanemullett.model.type.SqlDataType;
 
 /**
  * Represents the definition of a database column, including its name, data
- * type, and whether it is a primary key.
+ * type, whether it is a primary key, and whether it accepts {@code NULL}.
  *
  * <p>Used as part of a {@link TableDefinition} to define the structure of a
  * database table.
@@ -51,8 +51,24 @@ public interface ColumnDefinition {
     }
 
     /**
+     * Returns whether this column accepts {@code NULL} values. Defaults to
+     * {@code false}, so columns are {@code NOT NULL} unless stated otherwise.
+     *
+     * <p>Primary key columns are always {@code NOT NULL} in PostgreSQL,
+     * whatever this returns. Serialised to JSON as {@code "isNullable"}.
+     *
+     * @return {@code true} if the column accepts {@code NULL}, {@code false}
+     *         if it is {@code NOT NULL}.
+     */
+    @Default
+    default boolean isNullable() {
+        return false;
+    }
+
+    /**
      * Creates a new {@code ColumnDefinition} with the given name and data
-     * type, with {@code primaryKey} defaulting to {@code false}.
+     * type, with {@code primaryKey} and {@code isNullable} defaulting to
+     * {@code false}.
      *
      * @param name     the name of the column.
      * @param dataType the SQL data type of the column.

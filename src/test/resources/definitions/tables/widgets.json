@@ -4,9 +4,9 @@
   "columns": [
     { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
     { "name": "name", "dataType": "VARCHAR" },
-    { "name": "quantity", "dataType": "INTEGER" },
-    { "name": "active", "dataType": "BOOLEAN" },
-    { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" },
-    { "name": "attributes", "dataType": "JSONB" }
+    { "name": "quantity", "dataType": "INTEGER", "isNullable": true },
+    { "name": "active", "dataType": "BOOLEAN", "isNullable": true },
+    { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE", "isNullable": true },
+    { "name": "attributes", "dataType": "JSONB", "isNullable": true }
   ]
 }

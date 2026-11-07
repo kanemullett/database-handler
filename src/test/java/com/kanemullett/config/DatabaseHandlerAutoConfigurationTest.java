@@ -177,21 +177,21 @@ class DatabaseHandlerAutoConfigurationTest {
 
             final DSLContext dsl = context.getBean(DSLContext.class);
 
-            // Then the schema and table from widgets.json exist, with every column
+            // Then the schema and table from widgets.json exist, with every column and its nullability
             assertThat(dsl.fetchValue(
                 "select count(*) from information_schema.schemata where schema_name = 'handler_test'"
             )).isEqualTo(1L);
             assertThat(dsl.fetchValues(
-                "select column_name || ':' || data_type from information_schema.columns "
+                "select column_name || ':' || data_type || ':' || is_nullable from information_schema.columns "
                     + "where table_schema = 'handler_test' and table_name = 'widgets' "
                     + "order by ordinal_position"
             )).isEqualTo(List.of(
-                "id:character varying",
-                "name:character varying",
-                "quantity:integer",
-                "active:boolean",
-                "created:timestamp without time zone",
-                "attributes:jsonb"
+                "id:character varying:NO",
+                "name:character varying:NO",
+                "quantity:integer:YES",
+                "active:boolean:YES",
+                "created:timestamp without time zone:YES",
+                "attributes:jsonb:YES"
             ));
             assertThat(dsl.fetchValue(
                 "select kcu.column_name from information_schema.table_constraints tc "

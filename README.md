@@ -93,7 +93,7 @@ each table is created if it doesn't already exist:
     { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
     { "name": "email", "dataType": "VARCHAR" },
     { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" },
-    { "name": "settings", "dataType": "JSONB" }
+    { "name": "settings", "dataType": "JSONB", "isNullable": true }
   ]
 }
 ```
@@ -102,6 +102,8 @@ each table is created if it doesn't already exist:
   `TIMESTAMP_WITHOUT_TIME_ZONE` or `JSONB`.
 - `primaryKey` defaults to `false`. Mark more than one column to get a
   composite key.
+- `isNullable` defaults to `false`, so columns are `NOT NULL` unless you set
+  `"isNullable": true`. Primary key columns are always `NOT NULL`.
 - Your application works within a single schema, so every file should use
   the same `schema`. It is created if it doesn't exist.
 - Names are quoted, so they are case-sensitive. Stick to lowercase.
@@ -143,6 +145,11 @@ spring.flyway.locations=classpath:db/migration,classpath:db/seed
 
 - **Tables from JSON definitions.** See
   [Creating tables from JSON definitions](#creating-tables-from-json-definitions).
+- **Column nullability.** `ColumnDefinition` has an `isNullable` flag, which
+  defaults to `false`. **This changes `DatabaseTableService.createTable`:**
+  columns used to be created nullable, and are now `NOT NULL` unless you
+  build them with `.isNullable(true)`. Tables that already exist are not
+  affected.
 - **`DatabaseSchemaService`** with `createSchema` and `deleteSchema`.
   `deleteSchema(schema, false)` refuses to drop a schema that isn't empty;
   `deleteSchema(schema, true)` drops it and everything in it.
