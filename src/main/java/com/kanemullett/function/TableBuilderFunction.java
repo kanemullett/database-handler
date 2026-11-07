@@ -9,7 +9,6 @@ import org.jooq.DataType;
 import org.jooq.Query;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
-import org.springframework.stereotype.Component;
 
 import com.kanemullett.model.ColumnDefinition;
 import com.kanemullett.model.TableDefinition;
@@ -23,7 +22,6 @@ import com.kanemullett.model.type.SqlDataType;
  * <p>Handles column definitions with their respective data types and
  * primary key constraints.
  */
-@Component
 public class TableBuilderFunction implements Function<TableDefinition, Query> {
 
     private final DSLContext dsl;

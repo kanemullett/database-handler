@@ -1,0 +1,12 @@
+{
+  "schema": "handler_test",
+  "table": "widgets",
+  "columns": [
+    { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
+    { "name": "name", "dataType": "VARCHAR" },
+    { "name": "quantity", "dataType": "INTEGER" },
+    { "name": "active", "dataType": "BOOLEAN" },
+    { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" },
+    { "name": "attributes", "dataType": "JSONB" }
+  ]
+}

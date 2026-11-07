@@ -3,7 +3,6 @@ package com.kanemullett.service;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.impl.DSL;
-import org.springframework.stereotype.Service;
 
 import com.kanemullett.function.TableBuilderFunction;
 import com.kanemullett.model.Table;
@@ -16,7 +15,6 @@ import com.kanemullett.model.TableDefinition;
  * query construction to {@link TableBuilderFunction} before executing the
  * resulting jOOQ queries via the injected {@link DSLContext}.
  */
-@Service
 public class DatabaseTableService {
     private final DSLContext dsl;
     private final TableBuilderFunction tableBuilderFunction;
