@@ -106,7 +106,7 @@ public class QueryBuilderFunctionTest {
         // Given
         final QueryRequest<DatabaseRecord> request = ImmutableQueryRequest.builder()
             .table(Table.of("test_schema", "test_table"))
-            .conditionGroup(QueryConditionGroup.of(
+            .addConditionGroups(QueryConditionGroup.of(
                 QueryCondition.of(Column.of("column1"), "test_value")
             ))
             .recordClass(DatabaseRecord.class)
@@ -126,7 +126,7 @@ public class QueryBuilderFunctionTest {
         // Given
         final QueryRequest<DatabaseRecord> request = ImmutableQueryRequest.builder()
             .table(Table.of("test_schema", "test_table"))
-            .conditionGroup(ImmutableQueryConditionGroup.builder()
+            .addConditionGroups(ImmutableQueryConditionGroup.builder()
                 .conditions(List.of(
                     QueryCondition.of(Column.of("column1"), "test_value"),
                     QueryCondition.of(Column.of("column2"), 23)
@@ -157,7 +157,7 @@ public class QueryBuilderFunctionTest {
                     .alias("user_name")
                     .build()
             ))
-            .conditionGroup(ImmutableQueryConditionGroup.builder()
+            .addConditionGroups(ImmutableQueryConditionGroup.builder()
                 .conditions(List.of(
                     QueryCondition.of(
                         ImmutableColumn.builder()
@@ -217,7 +217,7 @@ public class QueryBuilderFunctionTest {
                     JoinType.LEFT
                 )
             ))
-            .conditionGroup(ImmutableQueryConditionGroup.builder()
+            .addConditionGroups(ImmutableQueryConditionGroup.builder()
                 .conditions(List.of(
                     QueryCondition.of(
                         ImmutableColumn.builder()
@@ -249,11 +249,68 @@ public class QueryBuilderFunctionTest {
     }
 
     @Test
+    void shouldBuildSelectStatementWithMultipleConditionGroupsJoinedByAndByDefault() {
+        // Given
+        final QueryRequest<DatabaseRecord> request = ImmutableQueryRequest.builder()
+            .table(Table.of("test_schema", "test_table"))
+            .addConditionGroups(
+                ImmutableQueryConditionGroup.builder()
+                    .conditions(List.of(
+                        QueryCondition.of(Column.of("column1"), "test_value"),
+                        QueryCondition.of(Column.of("column2"), 23)
+                    ))
+                    .join(ConditionJoin.OR)
+                    .build(),
+                QueryConditionGroup.of(
+                    QueryCondition.of(Column.of("column3"), "other_value")
+                )
+            )
+            .recordClass(DatabaseRecord.class)
+            .build();
+
+        final String expected = "select * from \"test_schema\".\"test_table\" where ((\"column1\" = 'test_value' or \"column2\" = 23) and \"column3\" = 'other_value')";
+
+        // When
+        final SelectQuery<?> query = function.apply(request);
+
+        // Then
+        assertEquals(expected, query.getSQL(ParamType.INLINED));
+    }
+
+    @Test
+    void shouldBuildSelectStatementWithMultipleConditionGroupsJoinedByOr() {
+        // Given
+        final QueryRequest<DatabaseRecord> request = ImmutableQueryRequest.builder()
+            .table(Table.of("test_schema", "test_table"))
+            .addConditionGroups(
+                QueryConditionGroup.of(
+                    QueryCondition.of(Column.of("column1"), "test_value"),
+                    QueryCondition.of(Column.of("column2"), 23)
+                ),
+                QueryConditionGroup.of(
+                    QueryCondition.of(Column.of("column3"), "other_value"),
+                    QueryCondition.of(Column.of("column4"), 42)
+                )
+            )
+            .groupJoinType(ConditionJoin.OR)
+            .recordClass(DatabaseRecord.class)
+            .build();
+
+        final String expected = "select * from \"test_schema\".\"test_table\" where ((\"column1\" = 'test_value' and \"column2\" = 23) or (\"column3\" = 'other_value' and \"column4\" = 42))";
+
+        // When
+        final SelectQuery<?> query = function.apply(request);
+
+        // Then
+        assertEquals(expected, query.getSQL(ParamType.INLINED));
+    }
+
+    @Test
     void shouldBuildSelectStatementWithInCondition() {
         // Given
         final QueryRequest<DatabaseRecord> request = ImmutableQueryRequest.builder()
             .table(Table.of("test_schema", "test_table"))
-            .conditionGroup(QueryConditionGroup.of(
+            .addConditionGroups(QueryConditionGroup.of(
                 ImmutableQueryCondition.builder()
                     .column(Column.of("column1"))
                     .operator(ConditionOperator.IN)

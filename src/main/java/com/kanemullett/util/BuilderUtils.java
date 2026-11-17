@@ -9,6 +9,7 @@ import org.jooq.impl.DSL;
 import com.kanemullett.model.Column;
 import com.kanemullett.model.QueryCondition;
 import com.kanemullett.model.QueryConditionGroup;
+import com.kanemullett.model.type.ConditionJoin;
 
 /**
  * Utility class providing shared methods for building jOOQ {@link Condition}
@@ -22,6 +23,27 @@ public class BuilderUtils {
 
     private BuilderUtils() {
 
+    }
+
+    /**
+     * Builds a jOOQ {@link Condition} from a list of
+     * {@link QueryConditionGroup} objects, building each group individually
+     * and combining the results using the given {@link ConditionJoin}
+     * operator.
+     *
+     * @param groups the condition groups to build from.
+     * @param join   the operator used to combine the groups.
+     * @return the constructed {@link Condition}.
+     */
+    public static Condition buildConditionGroups(List<QueryConditionGroup> groups, ConditionJoin join) {
+        final List<Condition> conditions = groups.stream()
+            .map(BuilderUtils::buildConditionGroup)
+            .toList();
+
+        return switch (join) {
+            case AND -> DSL.and(conditions);
+            case OR -> DSL.or(conditions);
+        };
     }
 
     /**

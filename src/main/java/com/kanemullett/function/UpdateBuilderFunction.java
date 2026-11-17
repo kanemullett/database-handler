@@ -211,8 +211,8 @@ public class UpdateBuilderFunction {
 
     /**
      * Builds a jOOQ DELETE query from an {@link UpdateRequest}, applying a
-     * WHERE condition if a {@link com.kanemullett.model.QueryConditionGroup}
-     * is present.
+     * WHERE condition if any {@link com.kanemullett.model.QueryConditionGroup}
+     * objects are present.
      *
      * @param request the update request to build the DELETE query from.
      * @return the constructed DELETE {@link Query}.
@@ -220,8 +220,11 @@ public class UpdateBuilderFunction {
     private <T extends DatabaseRecord> Query buildDelete(UpdateRequest<T> request) {
         var delete = dsl.deleteFrom(buildTable(request.getTable()));
 
-        if (request.getConditionGroup() != null) {
-            return delete.where(BuilderUtils.buildConditionGroup(request.getConditionGroup()));
+        if (!request.getConditionGroups().isEmpty()) {
+            return delete.where(BuilderUtils.buildConditionGroups(
+                request.getConditionGroups(),
+                request.getGroupJoinType()
+            ));
         }
 
         return delete;
