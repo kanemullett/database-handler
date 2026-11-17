@@ -90,7 +90,6 @@ each table is created if it doesn't already exist:
   "schema": "app",
   "table": "users",
   "columns": [
-    { "name": "id", "dataType": "VARCHAR", "primaryKey": true },
     { "name": "email", "dataType": "VARCHAR" },
     { "name": "created", "dataType": "TIMESTAMP_WITHOUT_TIME_ZONE" },
     { "name": "settings", "dataType": "JSONB", "isNullable": true }
@@ -98,10 +97,17 @@ each table is created if it doesn't already exist:
 }
 ```
 
+- Every table gets an `id` column, which is what `DatabaseRecord.getId()`
+  is read from and written to. If you don't declare one, a `VARCHAR`
+  primary key called `id` is added as the first column, so the example
+  above creates `id`, `email`, `created` and `settings`. If you do declare
+  `id`, your definition is used as written.
 - `dataType` is one of `VARCHAR`, `INTEGER`, `BOOLEAN`,
   `TIMESTAMP_WITHOUT_TIME_ZONE` or `JSONB`.
 - `primaryKey` defaults to `false`. Mark more than one column to get a
-  composite key.
+  composite key. The automatically added `id` is a primary key too, so
+  marking another column as a primary key without declaring `id` also gives
+  a composite key, made of `id` and that column.
 - `isNullable` defaults to `false`, so columns are `NOT NULL` unless you set
   `"isNullable": true`. Primary key columns are always `NOT NULL`.
 - Your application works within a single schema, so every file should use
@@ -140,6 +146,20 @@ example:
 spring.datasource.hikari.maximum-pool-size=5
 spring.flyway.locations=classpath:db/migration,classpath:db/seed
 ```
+
+## What's new in 4.1.0
+
+- **Automatic `id` column.** Every `TableDefinition` now has an `id`
+  column. If you build one, or write a JSON definition, without an `id`
+  column, a `VARCHAR` primary key called `id` is added as the first column.
+  Records already required this column, so a table without it couldn't be
+  used through `DatabaseQueryService` anyway. Definitions that already
+  declare `id` produce exactly the same table as before. If you create
+  tables with `DatabaseTableService` but read and write them with your own
+  SQL, note that `getColumns()` and the created table now include `id`.
+- **`DatabaseTableService.createTables`** creates several tables as one
+  unit: all the SQL is built first, then the statements run as a single
+  batch in one transaction, so either every table is created or none are.
 
 ## What's new in 3.1.0
 
