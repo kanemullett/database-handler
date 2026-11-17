@@ -284,7 +284,7 @@ public class UpdateBuilderFunctionTest {
         final UpdateRequest<ExtendedRecord> request = ImmutableUpdateRequest.<ExtendedRecord>builder()
             .operation(SqlOperator.DELETE)
             .table(Table.of("test_schema", "test_table"))
-            .conditionGroup(QueryConditionGroup.of(
+            .addConditionGroups(QueryConditionGroup.of(
                 QueryCondition.of(Column.of("id"), "id1")
             ))
             .recordClass(ExtendedRecord.class)
@@ -305,7 +305,7 @@ public class UpdateBuilderFunctionTest {
         final UpdateRequest<ExtendedRecord> request = ImmutableUpdateRequest.<ExtendedRecord>builder()
             .operation(SqlOperator.DELETE)
             .table(Table.of("test_schema", "test_table"))
-            .conditionGroup(ImmutableQueryConditionGroup.builder()
+            .addConditionGroups(ImmutableQueryConditionGroup.builder()
                 .conditions(List.of(
                     QueryCondition.of(Column.of("age"), 65),
                     QueryCondition.of(Column.of("occupation"), "solicitor")
@@ -316,6 +316,34 @@ public class UpdateBuilderFunctionTest {
             .build();
 
         final String expected = "delete from \"test_schema\".\"test_table\" where (\"age\" = 65 or \"occupation\" = 'solicitor')";
+
+        // When
+        final Query query = function.apply(request);
+
+        // Then
+        assertEquals(expected, query.getSQL(ParamType.INLINED));
+    }
+
+    @Test
+    void shouldBuildDeleteStatementWithMultipleConditionGroups() {
+        // Given
+        final UpdateRequest<ExtendedRecord> request = ImmutableUpdateRequest.<ExtendedRecord>builder()
+            .operation(SqlOperator.DELETE)
+            .table(Table.of("test_schema", "test_table"))
+            .addConditionGroups(
+                QueryConditionGroup.of(
+                    QueryCondition.of(Column.of("age"), 65),
+                    QueryCondition.of(Column.of("occupation"), "solicitor")
+                ),
+                QueryConditionGroup.of(
+                    QueryCondition.of(Column.of("id"), "id1")
+                )
+            )
+            .groupJoinType(ConditionJoin.OR)
+            .recordClass(ExtendedRecord.class)
+            .build();
+
+        final String expected = "delete from \"test_schema\".\"test_table\" where ((\"age\" = 65 and \"occupation\" = 'solicitor') or \"id\" = 'id1')";
 
         // When
         final Query query = function.apply(request);

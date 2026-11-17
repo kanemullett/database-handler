@@ -2,10 +2,12 @@ package com.kanemullett.model;
 
 import java.util.List;
 
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.kanemullett.model.type.ConditionJoin;
 import com.kanemullett.model.type.SqlOperator;
 
 import jakarta.annotation.Nullable;
@@ -69,11 +71,27 @@ public interface UpdateRequest<T extends DatabaseRecord> {
     Class<T> getRecordClass();
 
     /**
-     * Returns the condition group used to build the WHERE clause for DELETE
-     * operations, or {@code null} if not required.
+     * Returns the condition groups used to build the WHERE clause for DELETE
+     * operations. Each group is built individually, and the groups are then
+     * combined using {@link #getGroupJoinType()}. Defaults to an empty list,
+     * in which case no WHERE clause is added.
      *
-     * @return the {@link QueryConditionGroup}, or {@code null}.
+     * @return the list of {@link QueryConditionGroup} objects.
      */
-    @Nullable
-    QueryConditionGroup getConditionGroup();
+    @Default
+    default List<QueryConditionGroup> getConditionGroups() {
+        return List.of();
+    }
+
+    /**
+     * Returns the logical operator used to combine the condition groups
+     * returned by {@link #getConditionGroups()}. Defaults to
+     * {@link ConditionJoin#AND} if not explicitly set.
+     *
+     * @return the {@link ConditionJoin}.
+     */
+    @Default
+    default ConditionJoin getGroupJoinType() {
+        return ConditionJoin.AND;
+    }
 }

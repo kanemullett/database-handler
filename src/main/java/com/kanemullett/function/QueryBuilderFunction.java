@@ -87,8 +87,11 @@ public class QueryBuilderFunction {
                 .forEach(join -> buildJoin(query, join));
         }
 
-        if (request.getConditionGroup() != null) {
-            query.addConditions(BuilderUtils.buildConditionGroup(request.getConditionGroup()));
+        if (!request.getConditionGroups().isEmpty()) {
+            query.addConditions(BuilderUtils.buildConditionGroups(
+                request.getConditionGroups(),
+                request.getGroupJoinType()
+            ));
         }
 
         if (request.getGroupBy() != null) {
