@@ -160,5 +160,23 @@
         </plugin>
       </plugins>
     </pluginManagement>
+    <plugins>
+      <!-- Publishes the shared test helpers in com.kanemullett.testing as a test-jar for consuming apps -->
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>com/kanemullett/testing/**</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 </project>
