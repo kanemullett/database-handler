@@ -2,12 +2,11 @@ package com.kanemullett.model;
 
 import java.util.List;
 
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-
-import jakarta.annotation.Nullable;
 
 /**
  * Represents the response from a database query or update operation,
@@ -48,6 +47,8 @@ public interface QueryResponse<T extends DatabaseRecord> {
      *
      * @return the list of {@link DatabaseRecord} instances, or {@code null}.
      */
-    @Nullable
-    List<T> getRecords();
+    @Default
+    default List<T> getRecords() {
+        return List.of();
+    }
 }
