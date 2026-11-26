@@ -160,6 +160,14 @@ spring.flyway.locations=classpath:db/migration,classpath:db/seed
 - **`DatabaseTableService.createTables`** creates several tables as one
   unit: all the SQL is built first, then the statements run as a single
   batch in one transaction, so either every table is created or none are.
+- **`QueryResponse.getRecords()` is never `null`.** INSERT, UPDATE and
+  DELETE responses used to return `null` records, and now return an empty
+  list. **This changes behaviour for callers:** a `getRecords() == null`
+  check is now always false, so use `getRecords().isEmpty()` instead.
+  Passing `null` to `ImmutableQueryResponse.builder().records(...)` now
+  throws a `NullPointerException`; leave the call out to get the empty
+  list. JSON with `"records": null`, or with no `records` field,
+  deserialises to an empty list.
 
 ## What's new in 3.1.0
 
