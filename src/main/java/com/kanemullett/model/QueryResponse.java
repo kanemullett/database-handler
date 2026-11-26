@@ -42,10 +42,12 @@ public interface QueryResponse<T extends DatabaseRecord> {
     int getRecordCount();
 
     /**
-     * Returns the records retrieved by the operation, or {@code null} for
-     * operations that do not return records such as INSERT, UPDATE, or DELETE.
+     * Returns the records retrieved by the operation. Operations that do not
+     * return records, such as INSERT, UPDATE, or DELETE, return an empty
+     * list. Never {@code null}.
      *
-     * @return the list of {@link DatabaseRecord} instances, or {@code null}.
+     * @return the list of {@link DatabaseRecord} instances, empty if the
+     *         operation returns no records.
      */
     @Default
     default List<T> getRecords() {
