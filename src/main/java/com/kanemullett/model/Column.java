@@ -7,8 +7,6 @@ import org.immutables.value.Value.Immutable;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
-import jakarta.annotation.Nullable;
-
 /**
  * Represents a database column reference, consisting of one or more name
  * parts and an optional alias.
@@ -29,7 +27,7 @@ import jakarta.annotation.Nullable;
 @JsonDeserialize(
     as=ImmutableColumn.class
 )
-public interface Column {
+public interface Column extends StoreField {
 
     /**
      * Returns the parts of the column name, used to build a qualified
@@ -38,14 +36,6 @@ public interface Column {
      * @return the list of name parts.
      */
     List<String> getParts();
-
-    /**
-     * Returns the optional alias for this column, used in SELECT clauses.
-     *
-     * @return the alias, or {@code null} if not set.
-     */
-    @Nullable
-    String getAlias();
 
     /**
      * Creates a new {@code Column} with the given name parts.

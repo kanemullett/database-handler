@@ -37,7 +37,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 @Immutable
 @JsonSerialize(as=ImmutableFunction.class)
 @JsonDeserialize(as=ImmutableFunction.class)
-public interface Function extends Column {
+public interface Function extends StoreField {
+
+    List<String> getParts();
 
     /**
      * Returns the arguments to be passed to this function. Arguments may be
